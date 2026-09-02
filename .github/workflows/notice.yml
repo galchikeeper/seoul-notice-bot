@@ -1,0 +1,81 @@
+name: 서울 임대주택 공고 알림
+
+on:
+  schedule:
+    # 평일 08:00 KST = 23:00 UTC (일~목)
+    - cron: "0 23 * * 0-4"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "카톡 발송 없이 실행 (1이면 발송 안 함)"
+        required: false
+        default: "0"
+      rewind:
+        description: "테스트용 — 마지막 확인 번호를 이 값으로 되돌림 (예: 466)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: notice
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: 한글 폰트 설치
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
+      - name: 되감기 (테스트용)
+        if: inputs.rewind != ''
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          p = pathlib.Path("state.json")
+          s = json.loads(p.read_text()) if p.exists() else {}
+          s["soco_last_no"] = int(os.environ["REWIND"])
+          p.write_text(json.dumps(s, ensure_ascii=False, indent=2))
+          print("rewound to", s["soco_last_no"])
+          PY
+        env:
+          REWIND: ${{ inputs.rewind }}
+
+      - name: 공고 확인 및 발송
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CARD_LIMIT: "3"
+        run: python bot.py
+
+      - name: 결과 커밋
+        run: |
+          git config user.name  "notice-bot"
+          git config user.email "notice-bot@users.noreply.github.com"
+          git add state.json cards/ || true
+          git diff --staged --quiet || git commit -m "공고 확인 $(date -u +%Y-%m-%d)"
+          git push || true
+
+      - name: 오래된 카드 정리 (60일)
+        run: |
+          find cards -name '*.png' -mtime +60 -delete || true
+          git add cards/ || true
+          git diff --staged --quiet || (git commit -m "오래된 카드 정리" && git push) || true
