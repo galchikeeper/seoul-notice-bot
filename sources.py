@@ -12,7 +12,7 @@ SOCO_JSON = ("https://soco.seoul.go.kr/youth/pgm/home/yohome/bbsListJson.json"
 SOCO_VIEW = "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId={bid}&menuNo=400008"
 SOCO_FILE = "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId={fid}&fileSn=1"
 
-HILLSTATE = "https://hillstatenewfore.co.kr/sub/sub05_01.php"
+HILLSTATE = "https://www.hillstatenewfore.co.kr/sub/sub05_01.php"
 SPACEREITS = {
     "seongdong":   "성동스페이스",
     "yeongdeungpo": "양평동 동문 디 이스트",
@@ -30,6 +30,22 @@ FAST_TURNOVER = [
 
 def _strip(html: str) -> str:
     return BeautifulSoup(html or "", "html.parser").get_text("\n", strip=True)
+
+
+def _get_retry(url: str, tries: int = 3, wait: float = 2.0):
+    """spacereits/hillstate 는 연결이 산발적으로 끊긴다. 몇 번 다시 시도한다."""
+    import time
+    last = None
+    for i in range(tries):
+        try:
+            r = requests.get(url, headers=UA, timeout=TIMEOUT)
+            r.raise_for_status()
+            return r
+        except Exception as e:
+            last = e
+            if i < tries - 1:
+                time.sleep(wait * (i + 1))
+    raise last
 
 
 # ─────────────────────────── 청년안심주택 ───────────────────────────
@@ -107,14 +123,41 @@ def parse_body(body: str) -> dict:
     }
 
 
+DATE_RE = re.compile(
+    r"(\d{1,2})\.\s*(\d{1,2})\.\s*[（(]?([월화수목금토일])?[)）]?\s*(\d{1,2}:\d{2})?")
+
+
 def _deadline(raw: str) -> str:
-    """'‘26. 09. 11. (금) 09:00 ~ 09. 14. (월) 23:00' → '9/14(월) 23:00'"""
+    """'‘26. 09. 11. (금) 09:00 ~ 09. 14. (월) 23:00' → '9/14(월) 23:00'
+
+    당일 접수('26. 09. 07. (월) 00:00 ~ 23:00)처럼 ~ 뒤에 날짜가 없는 경우가 있어,
+    ~ 뒤에서 날짜를 못 찾으면 문자열 전체의 마지막 날짜를 마감일로 본다.
+    """
     if not raw:
         return ""
+    # 연도 표기('‘26.', "'26.", '2026.', '2026년')를 먼저 걷어낸다.
+    # 안 걷어내면 '‘26. 09. 07.' 에서 26 을 '월'로 잡아 파싱이 깨진다.
+    raw = re.sub(r"[‘’'\"`]\s*\d{2}\s*\.", " ", raw)
+    raw = re.sub(r"\b20\d{2}\s*[.년]", " ", raw)
+
+    def valid(mo):                             # '‘26. 09.' 의 26 을 월로 잡지 않도록
+        return 1 <= int(mo.group(1)) <= 12 and 1 <= int(mo.group(2)) <= 31
+
     tail = raw.split("~")[-1]
-    m = re.search(r"(\d{1,2})\.\s*(\d{1,2})\.\s*[（(]?([월화수목금토일])?[)）]?\s*(\d{1,2}:\d{2})?", tail)
-    if not m:
-        return raw.strip()[:24]
+    m = next((x for x in DATE_RE.finditer(tail) if valid(x)), None)
+    if not m:                                  # ~ 뒤에 날짜 없음 → 전체의 마지막 날짜
+        all_m = [x for x in DATE_RE.finditer(raw) if valid(x)]
+        if not all_m:
+            return raw.strip()[:24]
+        m = all_m[-1]
+        hm = re.search(r"(\d{1,2}:\d{2})\s*$", raw.strip())
+        mm, dd, wd = m.group(1), m.group(2), m.group(3) or ""
+        s = f"{int(mm)}/{int(dd)}"
+        if wd:
+            s += f"({wd})"
+        if hm:
+            s += f" {hm.group(1)}"
+        return s
     mm, dd, wd, hm = m.group(1), m.group(2), m.group(3) or "", m.group(4) or ""
     s = f"{int(mm)}/{int(dd)}"
     if wd:
@@ -124,17 +167,24 @@ def _deadline(raw: str) -> str:
     return s
 
 
-def dday(deadline: str, today: dt.date) -> str:
+def dday_days(deadline: str, today: dt.date) -> int | None:
+    """마감까지 남은 일수. 파싱 못 하면 None."""
     m = re.match(r"(\d{1,2})/(\d{1,2})", deadline or "")
     if not m:
-        return ""
+        return None
     mm, dd = int(m.group(1)), int(m.group(2))
     year = today.year + (1 if mm < today.month - 6 else 0)
     try:
         d = dt.date(year, mm, dd)
     except ValueError:
+        return None
+    return (d - today).days
+
+
+def dday(deadline: str, today: dt.date) -> str:
+    n = dday_days(deadline, today)
+    if n is None:
         return ""
-    n = (d - today).days
     return "D-DAY" if n == 0 else (f"D-{n}" if n > 0 else "마감")
 
 
@@ -204,8 +254,38 @@ def _rows_from_table(tbl) -> list[dict]:
 
 # ─────────────────────── 힐스테이트 / 공간지원리츠 ───────────────────────
 
+RECRUIT_RE = re.compile(r"(모집\s*공고|임차인\s*모집|입주자\s*모집|예비\s*입주자\s*모집)")
+# '모집'이 들어가도 모집 자체가 아닌 후속 안내들
+NOT_RECRUIT_RE = re.compile(
+    r"(추첨\s*결과|당첨자|발표|추가\s*서류|서류\s*제출|입주\s*안내|안내문|"
+    r"등기|사용\s*승인|준공|대출|계약\s*안내|공가|이벤트|점검|공사|"
+    r"근린생활시설|상가|주차장)")          # 상가 임차인 모집은 주거가 아니다
+
+
+def is_recruit(title: str) -> bool:
+    """제목이 '실제 모집공고'인지. 추첨결과·발표·등기 같은 후속 공지는 제외."""
+    t = title or ""
+    return bool(RECRUIT_RE.search(t)) and not NOT_RECRUIT_RE.search(t)
+
+
+def _row_key(text: str) -> tuple[str, str]:
+    """게시판 한 줄에서 (제목, 작성일)만 뽑는다.
+
+    조회수는 매일 올라가므로 지문에 넣으면 안 된다. 이걸 넣어둔 탓에
+    성동·영등포·강동이 매일 '신규'로 잡히는 오탐이 났었다.
+    """
+    date = ""
+    m = re.search(r"(\d{2}\.\d{2}\.\d{2})", text)
+    if m:
+        date = m.group(1)
+    title = text
+    title = re.split(r"\s*(?:관리자|작성일|조회)\s*", title)[0]
+    title = re.sub(r"^\s*(공지|notice)\s+", "", title, flags=re.I).strip()
+    return title[:100], date
+
+
 def fetch_hillstate() -> dict:
-    r = requests.get(HILLSTATE, headers=UA, timeout=TIMEOUT)
+    r = _get_retry(HILLSTATE)
     r.encoding = r.apparent_encoding
     text = _strip(r.text)
     m = re.search(r"전체\s*[:：]\s*(\d+)", text)
@@ -213,17 +293,25 @@ def fetch_hillstate() -> dict:
     soup = BeautifulSoup(r.text, "html.parser")
     titles = [a.get_text(strip=True) for a in soup.select("a") if a.get_text(strip=True)]
     latest = next((t for t in titles if "모집" in t or "발표" in t or "공지" in t), "")
-    return {"count": count, "latest": latest, "url": HILLSTATE}
+    return {"count": count, "latest": latest,
+            "is_recruit": is_recruit(latest), "url": HILLSTATE}
 
 
 def fetch_spacereits(slug: str) -> dict:
-    url = f"https://spacereits.co.kr/{slug}/notice"
+    """공지 목록의 최신 글 제목·날짜를 돌려준다. www 없는 주소는 리다이렉트가 불안정하다."""
+    url = f"https://www.spacereits.co.kr/{slug}/notice"
     try:
-        r = requests.get(url, headers=UA, timeout=TIMEOUT)
+        r = _get_retry(url)
         r.encoding = r.apparent_encoding
         soup = BeautifulSoup(r.text, "html.parser")
         rows = [tr.get_text(" ", strip=True) for tr in soup.select("tr")]
         rows = [x for x in rows if re.search(r"\d{2}\.\d{2}\.\d{2}", x)]
-        return {"latest": rows[0][:120] if rows else "", "count": len(rows), "url": url}
+        if not rows:
+            return {"title": "", "date": "", "key": "", "is_recruit": False,
+                    "count": 0, "url": url}
+        title, date = _row_key(rows[0])
+        return {"title": title, "date": date, "key": f"{date}|{title}",
+                "is_recruit": is_recruit(title), "count": len(rows), "url": url}
     except Exception:
-        return {"latest": "", "count": -1, "url": url, "error": True}
+        return {"title": "", "date": "", "key": "", "is_recruit": False,
+                "count": -1, "url": url, "error": True}

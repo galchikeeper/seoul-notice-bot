@@ -27,10 +27,13 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "")        # owner/name
 BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
 CDN = "https://cdn.jsdelivr.net/gh/{repo}@{branch}/cards/{name}"
 
+URGENT_DAYS = int(os.environ.get("URGENT_DAYS", "3"))  # 마감 N일 이내면 마감임박
+
 DEFAULT_STATE = {
     "soco_last_board_id": 6645,
     "hillstate_count": 28,
     "spacereits": {k: "" for k in S.SPACEREITS},
+    "tracking": [],      # 접수 진행 중인 공고 — 신규가 아니어도 마감을 계속 본다
     "checked": "",
 }
 
@@ -66,69 +69,128 @@ def kind_of(title: str) -> str:
 
 
 def priority(n: dict) -> int:
-    """작을수록 먼저. 마감임박 > 아파트형 > 최초모집 > 회전빠른단지 > 나머지"""
+    """작을수록 먼저. 마감임박 > 최초모집 > 회전빠른단지 > 추가모집 > 관심단지 공지
+
+    이전에는 hillstate/spacereits 를 1순위에 둬서, 모집도 아닌 공지 3건이
+    CARD_LIMIT 을 다 먹고 진짜 신규 모집공고 카드가 안 나가는 일이 있었다.
+    """
     if n.get("urgent"):
         return 0
-    if n["source"] in ("hillstate", "spacereits"):
-        return 1
     t = n.get("title", "")
-    if "최초" in t:
-        return 2
-    if any(k in t for k in S.FAST_TURNOVER):
+    if n["source"] == "soco":
+        if "최초" in t:
+            return 1
+        if any(k in t for k in S.FAST_TURNOVER):
+            return 2
         return 3
-    return 4
+    return 4 if n.get("is_recruit") else 5
 
 
 # ─────────────────────────── 수집 ───────────────────────────
 
-def collect(state: dict, today: dt.date) -> list[dict]:
+def collect(state: dict, today: dt.date):
     news: list[dict] = []
     errors: list[str] = []
+    open_now: list[dict] = []        # 접수 진행 중(신규 여부와 무관)
 
-    # (A) 청년안심주택
+    # (A) 청년안심주택 — 최근 2페이지를 통째로 읽는다.
+    #     신규 판정은 board_id 로 하되, 접수가 열려 있는 공고는 '이미 알던 것'이라도
+    #     마감 추적 목록에 넣는다. (신규만 보던 예전 방식은 어제 알린 공고가
+    #     오늘 마감인 경우를 놓쳤다.)
+    last_id = state["soco_last_board_id"]
     try:
-        for n in S.fetch_soco(state["soco_last_board_id"]):
+        fetched = S.fetch_soco(0, max_pages=2)
+        if fetched:
+            state["_soco_max_seen"] = max(x["board_id"] for x in fetched)
+        for n in fetched:
+            left = S.dday_days(n["deadline"], today)
+            n["days_left"] = left
             n["dday"] = S.dday(n["deadline"], today)
-            n["urgent"] = bool(re.match(r"D-([0-3])$", n["dday"] or ""))
+            n["urgent"] = left is not None and 0 <= left <= URGENT_DAYS
+            n["is_recruit"] = True
+
+            if left is not None and left >= 0:
+                open_now.append({
+                    "board_id": n.get("board_id"), "name": clean_name(n["title"]),
+                    "deadline": n["deadline"], "url": n["url"],
+                    "addr": n.get("addr", ""),
+                })
+            if n["board_id"] <= last_id:
+                continue                       # 이미 알린 공고
+            if left is not None and left < 0:
+                # 봇이 하루 걸렀을 때 이미 끝난 공고를 신규로 알리지 않는다
+                print(f"skip(마감됨): {n['title'][:50]} — {n['deadline']}")
+                continue
             news.append(n)
     except Exception as e:
         errors.append(f"청년안심주택 수집 실패: {e}")
 
-    # (B) 힐스테이트 관악 뉴포레
+    # (B) 힐스테이트 관악 뉴포레 — 글 수가 늘었을 때만, 모집공고일 때만 알림
     try:
         h = S.fetch_hillstate()
-        if h["count"] > state["hillstate_count"]:
+        if h["count"] > state["hillstate_count"] and h["is_recruit"]:
             news.append({
                 "source": "hillstate", "title": f"힐스테이트 관악 뉴포레 — {h['latest']}",
-                "name": "힐스테이트 관악 뉴포레", "kicker": "신규 공지 · 공공지원민간임대",
+                "name": "힐스테이트 관악 뉴포레", "kicker": "예비임차인 모집 · 공공지원민간임대",
                 "addr": "서울 관악구 조원로 25", "station": "신림동",
                 "supply": "1,143세대 · 전용 44/59/84㎡", "operator": "서울리츠4호 · KT리빙",
-                "deadline": "", "dday": "", "urgent": True, "types": [],
-                "url": h["url"], "site": "hillstatenewfore.co.kr", "pdf": None,
+                "deadline": "", "dday": "", "urgent": False, "is_recruit": True,
+                "types": [], "url": h["url"], "site": "hillstatenewfore.co.kr", "pdf": None,
             })
         state["_hillstate_count_new"] = h["count"]
     except Exception as e:
         errors.append(f"힐스테이트 뉴포레 확인 실패: {e}")
 
-    # (C) 공간지원리츠
+    # (C) 공간지원리츠 — 제목+작성일이 바뀌고, 그게 모집공고일 때만 알림
     for sl, name in S.SPACEREITS.items():
         r = S.fetch_spacereits(sl)
         if r.get("error"):
             errors.append(f"{name} 확인 실패")
             continue
         prev = state["spacereits"].get(sl, "")
-        if r["latest"] and r["latest"] != prev:
+        changed = bool(r["key"]) and r["key"] != prev
+        if changed and r["is_recruit"]:
             news.append({
-                "source": "spacereits", "title": f"{name} — {r['latest'][:60]}",
-                "name": name, "kicker": "신규 공지 · 공공지원민간임대",
+                "source": "spacereits", "title": f"{name} — {r['title'][:60]}",
+                "name": name, "kicker": "임차인 모집 · 공공지원민간임대",
                 "addr": name, "station": "", "supply": "", "operator": "공간지원리츠",
-                "deadline": "", "dday": "", "urgent": "모집공고" in r["latest"],
-                "types": [], "url": r["url"], "site": "spacereits.co.kr", "pdf": None,
+                "deadline": "", "dday": "", "urgent": False, "is_recruit": True,
+                "types": [], "url": r["url"], "site": "", "pdf": None,
             })
-        state.setdefault("_space_new", {})[sl] = r["latest"]
+        elif changed:
+            # 추첨결과·등기·안내문 같은 후속 공지는 조용히 상태만 갱신한다
+            print(f"skip(모집 아님): {name} — {r['title'][:50]}")
+        state.setdefault("_space_new", {})[sl] = r["key"]
 
     news.sort(key=priority)
-    return news, errors
+    return news, errors, open_now
+
+
+def refresh_tracking(state: dict, open_now: list[dict], today: dt.date) -> list[dict]:
+    """접수 중인 공고를 state 에 쌓아두고, 매 실행마다 D-day 를 다시 센다.
+
+    신규 공고만 보던 예전 방식은 '어제 이미 알린 공고가 오늘 마감'인 경우를
+    통째로 놓쳤다(천호한강 9/9 마감을 마감임박 0건으로 보고한 건).
+    """
+    keep: dict = {}
+    for row in list(state.get("tracking", [])) + open_now:
+        key = str(row.get("board_id") or row.get("url"))
+        keep[key] = {**keep.get(key, {}), **row}
+
+    alive, urgent = [], []
+    for row in keep.values():
+        left = S.dday_days(row.get("deadline", ""), today)
+        if left is None or left < 0:
+            continue                      # 마감된 건 목록에서 뺀다
+        row["days_left"] = left
+        row["dday"] = S.dday(row["deadline"], today)
+        alive.append(row)
+        if left <= URGENT_DAYS:
+            urgent.append(row)
+    alive.sort(key=lambda r: r["days_left"])
+    urgent.sort(key=lambda r: r["days_left"])
+    state["tracking"] = alive
+    return urgent
 
 
 # ─────────────────────────── 카드 ───────────────────────────
@@ -197,7 +259,8 @@ def card_data(n: dict, today: dt.date) -> dict:
 def main() -> int:
     today = dt.datetime.now(KST).date()
     state = load_state()
-    news, errors = collect(state, today)
+    news, errors, open_now = collect(state, today)
+    urgent_open = refresh_tracking(state, open_now, today)
 
     rest_key = os.environ.get("KAKAO_REST_KEY", "")
     refresh = os.environ.get("KAKAO_REFRESH_TOKEN", "")
@@ -210,19 +273,35 @@ def main() -> int:
         kk.refresh()
 
     stamp = today.strftime("%-m/%-d")
-    urgent = [n for n in news if n.get("urgent")]
 
-    # 1) 헤더
-    if not news:
-        head = (f"{stamp} 확인 완료\n신규 공고 없음\n"
-                f"청년안심 {state['soco_last_board_id']} · 뉴포레 {state['hillstate_count']}건")
+    # 1) 헤더 — 신규 목록과 마감임박 목록을 링크까지 같이 적는다.
+    #    카드 이미지가 안 뜨거나 CARD_LIMIT 에 밀려도 최소한 링크는 남게.
+    blocks: list[tuple[str, str]] = []   # (본문, 링크)
+    if news or urgent_open:
+        summary = (f"{stamp} 서울 임대주택\n"
+                   f"신규 {len(news)}건 · 마감임박 {len(urgent_open)}건")
     else:
-        head = f"{stamp} 서울 임대주택\n신규 {len(news)}건 · 마감임박 {len(urgent)}건"
+        summary = (f"{stamp} 확인 완료\n신규·마감임박 없음\n"
+                   f"청년안심 {state['soco_last_board_id']} · 뉴포레 {state['hillstate_count']}건")
     if errors:
-        head += "\n⚠ 확인 실패 " + str(len(errors)) + "건"
-    print(head, "\n---")
-    if kk:
-        kk.send_text(head)
+        summary += f"\n⚠ 확인 실패 {len(errors)}건"
+    blocks.append((summary, "https://soco.seoul.go.kr/youth/main/main.do"))
+
+    for r in urgent_open[:5]:
+        blocks.append((f"⚠ 마감임박 {r['dday']} · {r['name']}\n"
+                       f"마감 {r['deadline']}\n{r.get('addr','')}\n{r['url']}", r["url"]))
+    shown = {str(r.get("board_id") or r.get("url")) for r in urgent_open[:5]}
+    for n in news[:5]:
+        if str(n.get("board_id") or n.get("url")) in shown:
+            continue                     # 마감임박으로 이미 위에 올린 건 두 번 쓰지 않는다
+        nm = n.get("name") or clean_name(n["title"])
+        blocks.append((f"🆕 {nm}\n마감 {n.get('deadline') or '공고문 확인'}\n"
+                       f"{n.get('addr','')}\n{n['url']}", n["url"]))
+
+    for body, link in blocks:
+        print(body, "\n---")
+        if kk:
+            kk.send_text(body, link=link)
 
     # 2) 카드
     sent = 0
@@ -236,7 +315,10 @@ def main() -> int:
 
         if kk and REPO:
             img = CDN.format(repo=REPO, branch=BRANCH, name=fname)
-            desc = " · ".join(x for x in [d["addr"], f"마감 {d['deadline']}"] if x)
+            dep = next((t["deposit"] for t in d["types"] if t["deposit"] != "—"), "")
+            desc = " · ".join(x for x in [
+                d["addr"], d["supply"], f"마감 {d['deadline']}",
+                f"보증금 {dep}만원" if dep else "", d["url"]] if x)
             items = [(t["name"][:6], f"{t['area'].replace('전용 ','')} {t['deposit']}")
                      for t in d["types"] if t["deposit"] != "—"]
             kk.send_feed(title=f"{d['name']} {d['dday']}", desc=desc,
@@ -245,9 +327,10 @@ def main() -> int:
             sent += 1
 
     # 3) 상태 저장
-    soco_ids = [n["board_id"] for n in news if n.get("board_id")]
-    if soco_ids and not any("청년안심주택 수집 실패" in e for e in errors):
-        state["soco_last_board_id"] = max(soco_ids)
+    # 마감돼서 건너뛴 공고도 '본 것'이므로 최댓값으로 올린다 (매일 재평가 방지)
+    seen_max = state.pop("_soco_max_seen", 0)
+    if seen_max and not any("청년안심주택 수집 실패" in e for e in errors):
+        state["soco_last_board_id"] = max(seen_max, state["soco_last_board_id"])
     if "_hillstate_count_new" in state:
         state["hillstate_count"] = state.pop("_hillstate_count_new")
     for sl, v in state.pop("_space_new", {}).items():
