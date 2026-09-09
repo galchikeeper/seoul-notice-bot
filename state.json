@@ -2,7 +2,7 @@
   "soco_last_board_id": 6654,
   "hillstate_count": 28,
   "spacereits": {
-    "seongdong": "26.09.04|성동스페이스 2차 예비자 추첨 결과",
+    "seongdong": "26.09.09|성동스페이스 3차 예비자 추첨 결과",
     "yeongdeungpo": "25.04.28|양평동 동문 디 이스트 입주안내문 게시",
     "gangdong": "26.09.08|강동밀레니얼 중흥S클래스 건물 등기절차 진행 완료 공지",
     "mokdong": "",
@@ -10,19 +10,23 @@
   },
   "tracking": [
     {
-      "board_id": 6653,
-      "name": "천호역 천호한강청년주택",
-      "deadline": "9/9(수) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6653&menuNo=400008",
-      "addr": "서울특별시 강동구 천호대로 989"
+      "board_id": 6645,
+      "name": "태릉입구역 세이지움",
+      "deadline": "9/14(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6645&menuNo=400008",
+      "addr": "서울특별시 중랑구 숙선옹주로 4",
+      "days_left": 4,
+      "dday": "D-4"
     },
     {
       "board_id": 6654,
       "name": "홍대입구역 맹그로브창천",
       "deadline": "9/20(일) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6654&menuNo=400008",
-      "addr": "서울특별시 서대문구 신촌로 35"
+      "addr": "서울특별시 서대문구 신촌로 35",
+      "days_left": 10,
+      "dday": "D-10"
     }
   ],
-  "checked": "2026-09-09"
+  "checked": "2026-09-10"
 }
