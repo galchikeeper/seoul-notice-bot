@@ -1,5 +1,5 @@
 {
-  "soco_last_board_id": 6654,
+  "soco_last_board_id": 6665,
   "hillstate_count": 28,
   "spacereits": {
     "seongdong": "26.09.09|성동스페이스 3차 예비자 추첨 결과",
@@ -15,8 +15,80 @@
       "deadline": "9/14(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6645&menuNo=400008",
       "addr": "서울특별시 중랑구 숙선옹주로 4",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6665,
+      "name": "미아사거리역 미아 헤리츠타워",
+      "deadline": "9/14(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6665&menuNo=400008",
+      "addr": "서울특별시 성북구 월계로 38",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6664,
+      "name": "상봉역 상봉생활",
+      "deadline": "9/14(월) 18:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6664&menuNo=400008",
+      "addr": "서울특별시 중랑구 상봉동 116-49번지",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6663,
+      "name": "장한평역 유니트125(UNIT125)",
+      "deadline": "9/14(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6663&menuNo=400008",
+      "addr": "서울특별시 동대문구 장안동 418-1번지",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6661,
+      "name": "회기역 휘경제이스카이시티",
+      "deadline": "9/14(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6661&menuNo=400008",
+      "addr": "서울특별시 동대문구 휘경동 192-1",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6659,
+      "name": "우장산역 해링턴타워",
+      "deadline": "9/14(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6659&menuNo=400008",
+      "addr": "서울특별시 강서구 강서로 231",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6662,
+      "name": "청량리역 퀸즈W",
+      "deadline": "9/15(화) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6662&menuNo=400008",
+      "addr": "서울특별시 동대문구 전농동 127-359",
       "days_left": 4,
       "dday": "D-4"
+    },
+    {
+      "board_id": 6658,
+      "name": "구산역 구산주택",
+      "deadline": "9/15(화) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6658&menuNo=400008",
+      "addr": "서울특별시 은평구 서오릉로 165",
+      "days_left": 4,
+      "dday": "D-4"
+    },
+    {
+      "board_id": 6660,
+      "name": "쌍문역 인히어쌍문",
+      "deadline": "9/16(수) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6660&menuNo=400008",
+      "addr": "서울특별시 도봉구 쌍문동 103-6",
+      "days_left": 5,
+      "dday": "D-5"
     },
     {
       "board_id": 6654,
@@ -24,9 +96,9 @@
       "deadline": "9/20(일) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6654&menuNo=400008",
       "addr": "서울특별시 서대문구 신촌로 35",
-      "days_left": 10,
-      "dday": "D-10"
+      "days_left": 9,
+      "dday": "D-9"
     }
   ],
-  "checked": "2026-09-10"
+  "checked": "2026-09-11"
 }
