@@ -10,22 +10,13 @@
   },
   "tracking": [
     {
-      "board_id": 6660,
-      "name": "쌍문역 인히어쌍문",
-      "deadline": "9/16(수) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6660&menuNo=400008",
-      "addr": "서울특별시 도봉구 쌍문동 103-6",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
       "board_id": 6654,
       "name": "홍대입구역 맹그로브창천",
       "deadline": "9/20(일) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6654&menuNo=400008",
       "addr": "서울특별시 서대문구 신촌로 35",
-      "days_left": 4,
-      "dday": "D-4"
+      "days_left": 3,
+      "dday": "D-3"
     },
     {
       "board_id": 6666,
@@ -33,9 +24,9 @@
       "deadline": "9/28(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6666&menuNo=400008",
       "addr": "서울특별시 마포구 염리동 172-10번지",
-      "days_left": 12,
-      "dday": "D-12"
+      "days_left": 11,
+      "dday": "D-11"
     }
   ],
-  "checked": "2026-09-16"
+  "checked": "2026-09-17"
 }
