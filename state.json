@@ -2,7 +2,7 @@
   "soco_last_board_id": 6677,
   "hillstate_count": 28,
   "spacereits": {
-    "seongdong": "26.09.14|성동스페이스 4차 예비자 추첨 결과",
+    "seongdong": "26.09.18|성동스페이스 5차 예비자 추첨 결과",
     "yeongdeungpo": "25.04.28|양평동 동문 디 이스트 입주안내문 게시",
     "gangdong": "26.09.08|강동밀레니얼 중흥S클래스 건물 등기절차 진행 완료 공지",
     "mokdong": "",
@@ -10,22 +10,13 @@
   },
   "tracking": [
     {
-      "board_id": 6654,
-      "name": "홍대입구역 맹그로브창천",
-      "deadline": "9/20(일) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6654&menuNo=400008",
-      "addr": "서울특별시 서대문구 신촌로 35",
-      "days_left": 2,
-      "dday": "D-2"
-    },
-    {
       "board_id": 6677,
       "name": "광흥창역 이랜드PEER신촌",
       "deadline": "9/21(월) 17:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6677&menuNo=400008",
       "addr": "서울특별시 마포구 창전동 450",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6676,
@@ -33,8 +24,8 @@
       "deadline": "9/21(월) 17:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6676&menuNo=400008",
       "addr": "서울특별시 동대문구 망우로 46",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6674,
@@ -42,8 +33,8 @@
       "deadline": "9/21(월) 16:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6674&menuNo=400008",
       "addr": "서울특별시 성북구 종암동 83-3 일원 (동북선 종암경찰서역)",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6673,
@@ -51,8 +42,8 @@
       "deadline": "9/21(월) 16:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6673&menuNo=400008",
       "addr": "서울특별시 성동구 마장동 836일원",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6672,
@@ -60,8 +51,8 @@
       "deadline": "9/21(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6672&menuNo=400008",
       "addr": "서울특별시 은평구 불광동 302-13번지 외 1필지",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6671,
@@ -69,8 +60,8 @@
       "deadline": "9/21(월) 21:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6671&menuNo=400008",
       "addr": "서울특별시 영등포구 신길동 3608번지 외",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6670,
@@ -78,8 +69,8 @@
       "deadline": "9/21(월)",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6670&menuNo=400008",
       "addr": "서울특별시 관악구 남부순환로 180길 6",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6669,
@@ -87,8 +78,8 @@
       "deadline": "9/21(월) 16:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6669&menuNo=400008",
       "addr": "서울특별시 관악구 남부순환로 224길 25",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6668,
@@ -96,8 +87,8 @@
       "deadline": "9/21(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6668&menuNo=400008",
       "addr": "서울특별시 강서구 공항대로59가길 14",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6667,
@@ -105,8 +96,8 @@
       "deadline": "9/21(월) 16:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6667&menuNo=400008",
       "addr": "서울특별시 광진구 구의동 593-11",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6675,
@@ -114,8 +105,8 @@
       "deadline": "9/22(화) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6675&menuNo=400008",
       "addr": "서울특별시 동대문구 전농동 127-359",
-      "days_left": 4,
-      "dday": "D-4"
+      "days_left": 1,
+      "dday": "D-1"
     },
     {
       "board_id": 6666,
@@ -123,9 +114,9 @@
       "deadline": "9/28(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6666&menuNo=400008",
       "addr": "서울특별시 마포구 염리동 172-10번지",
-      "days_left": 10,
-      "dday": "D-10"
+      "days_left": 7,
+      "dday": "D-7"
     }
   ],
-  "checked": "2026-09-18"
+  "checked": "2026-09-21"
 }
