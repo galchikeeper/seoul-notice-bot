@@ -15,8 +15,8 @@
       "deadline": "9/28(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6666&menuNo=400008",
       "addr": "서울특별시 마포구 염리동 172-10번지",
-      "days_left": 4,
-      "dday": "D-4"
+      "days_left": 3,
+      "dday": "D-3"
     },
     {
       "board_id": 6678,
@@ -24,8 +24,8 @@
       "deadline": "10/4(일) 18:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6678&menuNo=400008",
       "addr": "서울특별시 마포구 염리동 534",
-      "days_left": 10,
-      "dday": "D-10"
+      "days_left": 9,
+      "dday": "D-9"
     },
     {
       "board_id": 6679,
@@ -33,9 +33,9 @@
       "deadline": "10/5(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6679&menuNo=400008",
       "addr": "서울특별시 송파구 장지동 842-1",
-      "days_left": 11,
-      "dday": "D-11"
+      "days_left": 10,
+      "dday": "D-10"
     }
   ],
-  "checked": "2026-09-24"
+  "checked": "2026-09-25"
 }
