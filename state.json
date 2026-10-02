@@ -1,5 +1,5 @@
 {
-  "soco_last_board_id": 6679,
+  "soco_last_board_id": 6685,
   "hillstate_count": 28,
   "spacereits": {
     "seongdong": "26.09.18|성동스페이스 5차 예비자 추첨 결과",
@@ -15,8 +15,17 @@
       "deadline": "10/4(일) 18:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6678&menuNo=400008",
       "addr": "서울특별시 마포구 염리동 534",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 2,
+      "dday": "D-2"
+    },
+    {
+      "board_id": 6683,
+      "name": "강변역 센텀힐스한강",
+      "deadline": "10/4(일) 17:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6683&menuNo=400008",
+      "addr": "서울특별시 광진구 구의동 587-62",
+      "days_left": 2,
+      "dday": "D-2"
     },
     {
       "board_id": 6679,
@@ -24,9 +33,54 @@
       "deadline": "10/5(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6679&menuNo=400008",
       "addr": "서울특별시 송파구 장지동 842-1",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6682,
+      "name": "상봉역 세이지움 상봉",
+      "deadline": "10/5(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6682&menuNo=400008",
+      "addr": "서울특별시 중랑구 상봉동 503",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6681,
+      "name": "선릉역 삼성동 마에스트로",
+      "deadline": "10/5(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6681&menuNo=400008",
+      "addr": "서울시 강남구 삼성동 140-32",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6685,
+      "name": "동묘앞역 청계로벤하임",
+      "deadline": "10/6(화) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6685&menuNo=400008",
+      "addr": "서울특별시 종로구 숭인동 240-1 외",
       "days_left": 4,
       "dday": "D-4"
+    },
+    {
+      "board_id": 6680,
+      "name": "건대입구역 더포디엄830",
+      "deadline": "10/6(화) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6680&menuNo=400008",
+      "addr": "서울특별시 광진구 아차산로 212",
+      "days_left": 4,
+      "dday": "D-4"
+    },
+    {
+      "board_id": 6684,
+      "name": "서울역 어반허브 서울스테이션",
+      "deadline": "10/15(목) 17:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6684&menuNo=400008",
+      "addr": "서울특별시 용산구 서계동 100-1번지",
+      "days_left": 13,
+      "dday": "D-13"
     }
   ],
-  "checked": "2026-10-01"
+  "checked": "2026-10-02"
 }
