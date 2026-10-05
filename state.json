@@ -2,7 +2,7 @@
   "soco_last_board_id": 6685,
   "hillstate_count": 28,
   "spacereits": {
-    "seongdong": "26.09.18|성동스페이스 5차 예비자 추첨 결과",
+    "seongdong": "26.10.02|성동스페이스 6차 예비자 추첨 결과",
     "yeongdeungpo": "25.04.28|양평동 동문 디 이스트 입주안내문 게시",
     "gangdong": "26.09.08|강동밀레니얼 중흥S클래스 건물 등기절차 진행 완료 공지",
     "mokdong": "",
@@ -10,31 +10,13 @@
   },
   "tracking": [
     {
-      "board_id": 6678,
-      "name": "대흥역 리마크빌 마포",
-      "deadline": "10/4(일) 18:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6678&menuNo=400008",
-      "addr": "서울특별시 마포구 염리동 534",
-      "days_left": 2,
-      "dday": "D-2"
-    },
-    {
-      "board_id": 6683,
-      "name": "강변역 센텀힐스한강",
-      "deadline": "10/4(일) 17:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6683&menuNo=400008",
-      "addr": "서울특별시 광진구 구의동 587-62",
-      "days_left": 2,
-      "dday": "D-2"
-    },
-    {
       "board_id": 6679,
       "name": "장지역 송파해링턴타워",
       "deadline": "10/5(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6679&menuNo=400008",
       "addr": "서울특별시 송파구 장지동 842-1",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6682,
@@ -42,8 +24,8 @@
       "deadline": "10/5(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6682&menuNo=400008",
       "addr": "서울특별시 중랑구 상봉동 503",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6681,
@@ -51,8 +33,8 @@
       "deadline": "10/5(월) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6681&menuNo=400008",
       "addr": "서울시 강남구 삼성동 140-32",
-      "days_left": 3,
-      "dday": "D-3"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6685,
@@ -60,8 +42,8 @@
       "deadline": "10/6(화) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6685&menuNo=400008",
       "addr": "서울특별시 종로구 숭인동 240-1 외",
-      "days_left": 4,
-      "dday": "D-4"
+      "days_left": 1,
+      "dday": "D-1"
     },
     {
       "board_id": 6680,
@@ -69,8 +51,8 @@
       "deadline": "10/6(화) 23:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6680&menuNo=400008",
       "addr": "서울특별시 광진구 아차산로 212",
-      "days_left": 4,
-      "dday": "D-4"
+      "days_left": 1,
+      "dday": "D-1"
     },
     {
       "board_id": 6684,
@@ -78,9 +60,9 @@
       "deadline": "10/15(목) 17:00",
       "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6684&menuNo=400008",
       "addr": "서울특별시 용산구 서계동 100-1번지",
-      "days_left": 13,
-      "dday": "D-13"
+      "days_left": 10,
+      "dday": "D-10"
     }
   ],
-  "checked": "2026-10-02"
+  "checked": "2026-10-05"
 }
