@@ -146,14 +146,15 @@ def collect(state: dict, today: dt.date):
                     print(f"skip(모집 아님): 힐스테이트 — {x['title'][:50]}")
                     continue
                 news.append({
+                    "board_id": f"hill:{x['key']}",            # 같은 게시판 URL 이라 글마다 따로 구분
                     "source": "hillstate", "title": f"힐스테이트 관악 뉴포레 — {x['title']}",
-                    "name": "힐스테이트 관악 뉴포레", "kicker": "예비임차인 모집 · 공공지원민간임대",
+                    "name": f"힐스테이트 관악 뉴포레 — {x['title'][:30]}", "kicker": "예비임차인 모집 · 공공지원민간임대",
                     "addr": "서울 관악구 조원로 25", "station": "신림동",
                     "supply": "", "operator": "",           # 공고마다 달라 고정값을 넣지 않는다
                     "deadline": "", "dday": "", "urgent": False, "is_recruit": True,
                     "types": [], "url": h["url"], "site": "hillstatenewfore.co.kr", "pdf": None,
                 })
-        state["_hillstate_seen_new"] = sorted(set(seen or []) | set(keys))[-200:]
+        state["_hillstate_seen_new"] = (keys + [k for k in (seen or []) if k not in keys])[:max(200, len(keys))]
         state["_hillstate_count_new"] = h["count"]
     except Exception as e:
         errors.append(f"힐스테이트 뉴포레 확인 실패: {e}")
@@ -193,14 +194,15 @@ def collect(state: dict, today: dt.date):
                     print(f"skip(조건 밖·모집 아님): {label} — {x['title'][:50]}")
                     continue
                 news.append(mk(x))
-        state["_new_" + key] = sorted(set(seen or []) | set(ids))[-300:]
+        # 지금 목록에 보이는 글은 절대 잘라내지 않는다(고정 공지가 빠지면 매일 다시 알리게 됨)
+        state["_new_" + key] = (ids + [x for x in (seen or []) if x not in ids])[:max(300, len(ids))]
 
     try:
         sh = [{**x, "id": x["seq"]} for x in S.fetch_sh()]
         if not sh:
             raise ValueError("글 목록 0건")
         board("SH", "sh_seen", sh, lambda x: {
-            "source": "sh", "title": f"SH — {x['title']}", "name": x["title"][:40],
+            "board_id": f"sh:{x['id']}", "source": "sh", "title": f"SH — {x['title']}", "name": x["title"][:40],
             "kicker": "SH 주택임대 공고", "addr": "", "deadline": "", "dday": "", "urgent": False,
             "is_recruit": True, "types": [], "url": x["url"], "site": "", "pdf": None})
     except Exception as e:
@@ -213,7 +215,7 @@ def collect(state: dict, today: dt.date):
         if not el:
             raise ValueError("글 목록 0건")
         board("엘리스", "elyes_seen", el, lambda x: {
-            "source": "elyes", "title": f"롯데 엘리스 — {x['title']}"
+            "board_id": f"elyes:{x['id']}", "source": "elyes", "title": f"롯데 엘리스 — {x['title']}"
                                         + (" (지역 미확인)" if x["region"] == "미확인" else ""),
             "name": x["title"][:40], "kicker": "롯데 엘리스 모집공고", "addr": "",
             "deadline": "", "dday": "", "urgent": False, "is_recruit": True, "types": [],

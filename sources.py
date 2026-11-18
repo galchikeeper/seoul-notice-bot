@@ -339,17 +339,30 @@ def fetch_spacereits(slug: str) -> dict:
 SH_LIST = "https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/list.do"
 SH_VIEW = "https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/view.do?seq={seq}"
 # 조건(만 39세 이하·신혼·무주택, 주거용)에 안 맞는 글
-NOT_MINE_RE = re.compile(r"(고령자|어르신|노인|장애인\s*전용|상가|점포|업무시설|오피스|사무실|공장|주차|"
+NOT_MINE_RE = re.compile(r"(장애인\s*전용|상가|점포|업무시설|오피스(?!텔)|사무실|공장|주차|"
                          r"채용|신입사원|용역|입찰|공사|업무\s*시간|현황|마감되었습니다|계약\s*결과|예비\s*당첨|당첨자)")
+ELDER_RE = re.compile(r"(고령자|어르신|노인)")
+YOUNG_RE = re.compile(r"(청년|신혼|신생아|대학생|사회초년)")
 
 
 def mine(title: str) -> bool:
-    """모집공고이면서 사용자 조건에 안 맞는 글이 아닌 것."""
-    return is_recruit(title) and not NOT_MINE_RE.search(title)
+    """모집공고이면서 사용자 조건에 안 맞는 글이 아닌 것.
+    고령자 전용은 빼되, '청년·고령자'처럼 청년·신혼이 함께 적힌 공고는 남긴다."""
+    if not is_recruit(title) or NOT_MINE_RE.search(title):
+        return False
+    return not (ELDER_RE.search(title) and not YOUNG_RE.search(title))
 
 
-def fetch_sh() -> list[dict]:
-    r = _get_retry(SH_LIST)
+def fetch_sh(pages: int = 3) -> list[dict]:
+    """첫 3쪽(약 30건). 주말·장애로 며칠 밀려도 놓치지 않게 여러 쪽을 본다."""
+    out = []
+    for pg in range(1, pages + 1):
+        out += _sh_page(pg)
+    return list({x["seq"]: x for x in out}.values())
+
+
+def _sh_page(pg: int) -> list[dict]:
+    r = _get_retry(f"{SH_LIST}?page={pg}")
     soup = BeautifulSoup(r.text, "html.parser")
     out = []
     for tr in soup.select("tbody tr"):
@@ -410,7 +423,7 @@ def elyes_region_of(title: str, regions: dict) -> str:
 def fetch_elyes(regions: dict) -> list[dict]:
     import html as _html
     r = requests.post(f"{ELYES}/post/data/recruit/list", headers=ELYES_FORM_H, timeout=TIMEOUT,
-                      data="searchSelect=title&searchKeyword=&i_iNowPageNo=1&i_iPageSize=20")
+                      data="searchSelect=title&searchKeyword=&i_iNowPageNo=1&i_iPageSize=60")   # 며칠 밀려도 놓치지 않게 넉넉히
     r.raise_for_status()
     out = []
     for x in r.json().get("recruitList", []):
