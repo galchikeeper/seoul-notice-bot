@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "카톡 발송 없이 실행 (1이면 발송 안 함)"
+        description: "발송 없이 실행 (1이면 카톡·슬랙 모두 발송 안 함)"
         required: false
         default: "0"
       rewind:
@@ -70,6 +70,8 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_TEST: ${{ inputs.slack_test }}
           DRY_RUN: ${{ inputs.dry_run }}
+          # 카톡 발송 스위치: "0" 끔(2026-11-18부터 슬랙만), "1" 켬
+          KAKAO_ENABLED: "0"
           CARD_LIMIT: "3"
         run: python bot.py
 

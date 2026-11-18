@@ -119,6 +119,8 @@ def parse_body(body: str) -> dict:
         "apply_raw": apply_raw,
         "deadline": _deadline(apply_raw),
         "site": site,
+        # 신청 버튼용: 본문의 '청약신청 페이지 : https://…' 줄에 적힌 주소만 쓴다
+        "apply_url": one(r"청약신청\s*페이지\s*[:：]\s*(https?://[^\s,)）<]+)"),
         "tel": one(r"문의전화\s*[:：]?\s*([\d\-]{9,})"),
     }
 
