@@ -332,3 +332,93 @@ def fetch_spacereits(slug: str) -> dict:
     except Exception:
         return {"title": "", "date": "", "key": "", "is_recruit": False,
                 "count": -1, "url": url, "error": True}
+
+
+# ─────────────────────────── SH 주택임대 공고 ───────────────────────────
+
+SH_LIST = "https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/list.do"
+SH_VIEW = "https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/view.do?seq={seq}"
+# 조건(만 39세 이하·신혼·무주택, 주거용)에 안 맞는 글
+NOT_MINE_RE = re.compile(r"(고령자|어르신|노인|장애인\s*전용|상가|점포|업무시설|오피스|사무실|공장|주차|"
+                         r"채용|신입사원|용역|입찰|공사|업무\s*시간|현황|마감되었습니다|계약\s*결과|예비\s*당첨|당첨자)")
+
+
+def mine(title: str) -> bool:
+    """모집공고이면서 사용자 조건에 안 맞는 글이 아닌 것."""
+    return is_recruit(title) and not NOT_MINE_RE.search(title)
+
+
+def fetch_sh() -> list[dict]:
+    r = _get_retry(SH_LIST)
+    soup = BeautifulSoup(r.text, "html.parser")
+    out = []
+    for tr in soup.select("tbody tr"):
+        tds = [td.get_text(" ", strip=True) for td in tr.select("td")]
+        a = tr.select_one("a[onclick]")
+        m = re.search(r"getDetailView\('(\d+)'\)", a.get("onclick", "")) if a else None
+        if len(tds) < 4 or not m or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", tds[3]):
+            continue
+        title = re.sub(r"^NEW\s+", "", tds[1])
+        out.append({"seq": m.group(1), "title": title, "dept": tds[2], "date": tds[3],
+                    "url": SH_VIEW.format(seq=m.group(1)), "mine": mine(title)})
+    return out
+
+
+# ─────────────────────────── 롯데 엘리스 모집공고 ───────────────────────────
+
+ELYES = "https://www.elyes.co.kr"
+ELYES_FORM_H = {**UA, "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+NON_SEOUL_RE = re.compile(r"(경기도|부산광역시|인천광역시|대구광역시|광주광역시|대전광역시|울산광역시|"
+                          r"세종특별|충청|전라|경상|강원|제주)[가-힣]*\s*[가-힣]+(?:시|군|구)")
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"\s+|역|\(청년안심주택\)", "", name or "")
+
+
+def elyes_regions(cache: dict) -> dict:
+    """단지명 → '서울' / '서울 밖'. 단지 페이지 본문에 서울 밖 주소가 있으면 '서울 밖'.
+    (본문 아래 회사 주소 '서울 서초구 잠원로'는 모든 페이지에 있어 서울 판별에 쓰지 않는다)"""
+    r = requests.post(f"{ELYES}/complex/data/stay/list-all", headers=ELYES_FORM_H, timeout=TIMEOUT)
+    out = dict(cache)
+    for x in r.json().get("stayList", []):
+        name = x.get("proj_name") or ""
+        if not name or name in out or not x.get("landing_url"):
+            continue
+        from urllib.parse import urljoin
+        try:
+            t = requests.get(urljoin(ELYES + "/", x["landing_url"]), headers=UA, timeout=TIMEOUT).text
+        except Exception:
+            continue                       # 이번엔 모름 → 저장하지 않고 다음 실행에서 다시 본다
+        if re.search(r"서울(?:특별시|시)?\s*[가-힣]+구", t.replace("서초구 잠원로", "")) or NON_SEOUL_RE.search(t):
+            out[name] = "서울 밖" if NON_SEOUL_RE.search(t) else "서울"
+    return out
+
+
+def elyes_region_of(title: str, regions: dict) -> str:
+    m = re.match(r"\s*\[([^\]]+)\]", title)
+    if not m:
+        return "미확인"
+    b = _norm(m.group(1))
+    for name, reg in regions.items():
+        n = _norm(name)
+        if b and (b in n or n in b):
+            return reg
+    return "미확인"
+
+
+def fetch_elyes(regions: dict) -> list[dict]:
+    import html as _html
+    r = requests.post(f"{ELYES}/post/data/recruit/list", headers=ELYES_FORM_H, timeout=TIMEOUT,
+                      data="searchSelect=title&searchKeyword=&i_iNowPageNo=1&i_iPageSize=20")
+    r.raise_for_status()
+    out = []
+    for x in r.json().get("recruitList", []):
+        title = _html.unescape(x.get("nt_title") or "").strip()
+        if not title:
+            continue
+        reg = elyes_region_of(title, regions)
+        out.append({"id": x.get("nt_idx"), "title": title, "date": x.get("row_input_date") or "",
+                    "region": reg, "url": f"{ELYES}/post/recruit",
+                    "mine": mine(title) and reg != "서울 밖"})
+    return out

@@ -179,6 +179,48 @@ def collect(state: dict, today: dt.date):
             print(f"skip(모집 아님): {name} — {r['title'][:50]}")
         state.setdefault("_space_new", {})[sl] = r["key"]
 
+    # (D) SH 주택임대 공고 · (E) 롯데 엘리스 모집공고 — 처음 보는 글 중 조건에 맞는 모집공고만
+    def board(label, key, rows, mk):
+        seen = state.get(key)
+        ids = [str(x["id"]) for x in rows]
+        if seen is None:
+            print(f"{label}: 처음 실행 — 현재 글 {len(ids)}개를 본 것으로 기록(알림 없음)")
+        else:
+            for x in rows:
+                if str(x["id"]) in seen:
+                    continue
+                if not x["mine"]:
+                    print(f"skip(조건 밖·모집 아님): {label} — {x['title'][:50]}")
+                    continue
+                news.append(mk(x))
+        state["_new_" + key] = sorted(set(seen or []) | set(ids))[-300:]
+
+    try:
+        sh = [{**x, "id": x["seq"]} for x in S.fetch_sh()]
+        if not sh:
+            raise ValueError("글 목록 0건")
+        board("SH", "sh_seen", sh, lambda x: {
+            "source": "sh", "title": f"SH — {x['title']}", "name": x["title"][:40],
+            "kicker": "SH 주택임대 공고", "addr": "", "deadline": "", "dday": "", "urgent": False,
+            "is_recruit": True, "types": [], "url": x["url"], "site": "", "pdf": None})
+    except Exception as e:
+        errors.append(f"SH 주택임대 확인 실패: {type(e).__name__}")
+
+    try:
+        regions = S.elyes_regions(state.get("elyes_regions", {}))
+        state["_new_elyes_regions"] = regions
+        el = S.fetch_elyes(regions)
+        if not el:
+            raise ValueError("글 목록 0건")
+        board("엘리스", "elyes_seen", el, lambda x: {
+            "source": "elyes", "title": f"롯데 엘리스 — {x['title']}"
+                                        + (" (지역 미확인)" if x["region"] == "미확인" else ""),
+            "name": x["title"][:40], "kicker": "롯데 엘리스 모집공고", "addr": "",
+            "deadline": "", "dday": "", "urgent": False, "is_recruit": True, "types": [],
+            "url": x["url"], "site": "", "pdf": None})
+    except Exception as e:
+        errors.append(f"롯데 엘리스 확인 실패: {type(e).__name__}")
+
     news.sort(key=priority)
     return news, errors, open_now
 
@@ -501,6 +543,8 @@ def main() -> int:
         state["hillstate_count"] = state.pop("_hillstate_count_new")
     if "_hillstate_seen_new" in state:
         state["hillstate_seen"] = state.pop("_hillstate_seen_new")
+    for k in [k for k in state if k.startswith("_new_")]:
+        state[k[len("_new_"):]] = state.pop(k)
     for sl, v in state.pop("_space_new", {}).items():
         state["spacereits"][sl] = v
     state["checked"] = str(today)
