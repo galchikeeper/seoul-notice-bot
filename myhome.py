@@ -135,6 +135,8 @@ def notices(items: list[dict], today: dt.date, log=print) -> list[dict]:
             continue                                  # 이미 접수 마감
         types = []
         for x in keep:
+            log(f"myhome: 값 | {str(x.get('pblancNm'))[:30]} | {x.get('signguNm') or x.get('brtcNm')} | "
+                f"보증금 원값 {x.get('rentGtn')!r}→{money(x.get('rentGtn'), 'dep')} · 월세 원값 {x.get('mtRntchrg')!r}→{money(x.get('mtRntchrg'), 'rent')}")
             label = str(x.get("hsmpNm") or x.get("houseTyNm") or "확인 실패")[:20]
             t = {"kind": str(x.get("suplyTyNm") or ""), "label": label, "area": "",
                  "prices": [{"ratio": "기준", "deposit": money(x.get("rentGtn"), "dep"),
