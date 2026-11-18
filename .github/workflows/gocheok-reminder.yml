@@ -1,0 +1,45 @@
+name: 고척 아이파크 추가모집 리마인더
+
+# 카페는 읽지 않는다. 시간 알림만 보낸다.
+# 매주 목요일 09:30 KST = 목요일 00:30 UTC. GitHub 예약 실행이 10~30분 늦을 수 있어 접수(10:00)보다 30분 일찍 잡는다.
+on:
+  schedule:
+    - cron: "30 0 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 슬랙으로 리마인더 1건 보내기
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TEST_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+          url = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
+          if not url:
+              print("::error::SLACK_WEBHOOK_URL 이 비어 있습니다"); sys.exit(1)
+          text = ("<!channel> 🏠 고척 아이파크 추가모집 — 오늘 10:00~10:30 네이버폼 접수.\n"
+                  "폼 링크는 당일 카페 '추가모집공고 및 신청' 게시판에 올라옴.\n"
+                  "당첨 시 17:00까지 임대사업센터(02-2060-2205) 연락 필수.\n"
+                  "<https://cafe.naver.com/test2205|카페 바로가기> https://cafe.naver.com/test2205")
+          if os.environ.get("TEST_RUN") == "1":
+              text += "\n🧪 수동 시험 발송"
+          body = json.dumps({"text": text, "unfurl_links": False}).encode()
+          req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  code = r.status
+          except urllib.error.HTTPError as e:      # 주소가 찍히지 않게 상태 코드만
+              code = e.code
+          except Exception as e:
+              print(f"::error::슬랙 전송 오류 ({type(e).__name__})"); sys.exit(1)
+          print(f"slack reminder: HTTP {code}")
+          sys.exit(0 if code == 200 else 1)
+          PY
