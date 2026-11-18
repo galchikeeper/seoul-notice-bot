@@ -30,6 +30,10 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # 카톡 발송 스위치: "0" 끔(2026-11-18부터 슬랙만), "1" 켬.
+      # 꺼 두면 카톡 카드 이미지용 설치(크로미움·한글 폰트)도 건너뛴다(폰트 설치가 20분 제한에 걸려 실행이 취소된 적 있음).
+      KAKAO_ENABLED: "0"
     steps:
       - uses: actions/checkout@v4
 
@@ -52,12 +56,14 @@ jobs:
           cache: pip
 
       - name: 의존성 설치
-        run: |
-          pip install -r requirements.txt
-          playwright install --with-deps chromium
+        run: pip install -r requirements.txt
 
-      - name: 한글 폰트 설치
-        if: inputs.slack_test != '1'
+      - name: 카드 이미지용 브라우저 설치 (카톡 켰을 때만)
+        if: env.KAKAO_ENABLED == '1' && inputs.slack_test != '1'
+        run: playwright install --with-deps chromium
+
+      - name: 한글 폰트 설치 (카톡 켰을 때만)
+        if: env.KAKAO_ENABLED == '1' && inputs.slack_test != '1'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
 
       - name: 되감기 (테스트용)
@@ -83,8 +89,6 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_TEST: ${{ inputs.slack_test }}
           DRY_RUN: ${{ inputs.dry_run }}
-          # 카톡 발송 스위치: "0" 끔(2026-11-18부터 슬랙만), "1" 켬
-          KAKAO_ENABLED: "0"
           CARD_LIMIT: "3"
         run: python bot.py
 
