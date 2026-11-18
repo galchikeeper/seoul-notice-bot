@@ -43,6 +43,11 @@ class T(unittest.TestCase):
         self.assertIn("특별공급", rows[0]["kind"])
         self.assertIn("일반공급", rows[4]["kind"])
 
+    def test_6720_merged_type_cell(self):          # 52B 칸이 세로로 합쳐진 호실 4줄 — 면적을 이어 받는다
+        rows, _ = P.parse_pdf_bytes((FX / "soco_6720.pdf").read_bytes())
+        self.assertEqual([(r["label"], r["area"]) for r in rows][-3:], [("52B", "42.25")] * 3)
+        self.assertTrue(all(r["area"] for r in rows))
+
     def test_no_small_tenant_sentence(self):         # 예전 오류값(소액임차인 문장)이 다시 나오지 않는다
         for bid in (6730, 6731, 6732, 6704, 6718):
             rows, _ = load(bid)

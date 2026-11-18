@@ -44,3 +44,56 @@ class T(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Partial(unittest.TestCase):
+    def test_partial_table_not_skipped(self):       # 20㎡ 표만 읽히고 다른 표는 실패 → 빼지 않고 확인 필요 표시
+        x = n([t("20.20")]); x["types_complete"] = False
+        c = bot.slack_item(x, TODAY, fetch_pdf=False)
+        self.assertFalse(c["skip"])
+        self.assertIn("📐 면적 확인 필요", c["flags"])
+        self.assertEqual(c["rows"], [["확인 실패"] * 6])
+
+
+class Send(unittest.TestCase):
+    def setUp(self):
+        import slack
+        self.slack = slack
+        slack.time.sleep = lambda s: None
+        self.calls = []
+
+    def fake_requests(self, responses):
+        calls = self.calls
+        class R:
+            def __init__(self, code, text="", headers=None):
+                self.status_code, self.text, self.headers = code, text, headers or {}
+        seq = iter(responses)
+        def post(url, json=None, timeout=None):
+            calls.append([b["type"] for b in json.get("blocks", [])][1:2])
+            nx = next(seq)
+            if isinstance(nx, Exception):
+                raise nx
+            return R(*nx)
+        self.slack.requests.post = post
+
+    def card(self):
+        return {"top": "단지 · 마감 11/28", "flags": [], "rows": [["54형", "43.61", "청년", "30%", "10,790", "90"]],
+                "caption": "c", "note": "n", "fallback_text": "f", "notice_url": "https://e.invalid", "apply_url": ""}
+
+    def test_invalid_blocks_falls_back(self):
+        self.fake_requests([(400, "invalid_blocks"), (200, "ok")])
+        s = self.slack.Slack("https://hooks.invalid/x")
+        self.assertTrue(s.send_notice(self.card()))
+        self.assertEqual(self.calls, [["data_table"], ["table"]])
+
+    def test_429_waits_same_format(self):
+        self.fake_requests([(429, "", {"Retry-After": "2"}), (200, "ok")])
+        s = self.slack.Slack("https://hooks.invalid/x")
+        self.assertTrue(s.send_notice(self.card()))
+        self.assertEqual(self.calls, [["data_table"], ["data_table"]])
+
+    def test_timeout_no_resend(self):
+        self.fake_requests([TimeoutError("t")])
+        s = self.slack.Slack("https://hooks.invalid/x")
+        self.assertFalse(s.send_notice(self.card()))
+        self.assertEqual(len(self.calls), 1)

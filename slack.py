@@ -4,7 +4,7 @@
 주소가 담길 수 있는 예외 메시지는 절대 출력하지 않는다(상태 코드·예외 종류만).
 """
 from __future__ import annotations
-import os, re, requests
+import os, re, time, requests
 
 CARDS_PER_MESSAGE = 12          # 카드 1개 = 블록 4개, 슬랙 메시지당 블록 50개 제한
 
@@ -46,11 +46,24 @@ class Slack:
 
     def _post(self, payload: dict) -> bool:
         payload = {**payload, "unfurl_links": False, "unfurl_media": False}   # 미리보기 상자 끔
-        try:
-            r = requests.post(self.webhook, json=payload, timeout=30)
-        except Exception as e:                      # 메시지에 주소가 섞일 수 있어 종류만
-            print(f"slack: 전송 오류 ({type(e).__name__})")
-            return False
+        time.sleep(1.1)                             # 웹훅은 초당 1건 정도로 제한된다
+        for attempt in range(3):
+            try:
+                r = requests.post(self.webhook, json=payload, timeout=30)
+            except Exception as e:                  # 메시지에 주소가 섞일 수 있어 종류만
+                # 응답만 늦은 것일 수 있어(이미 게시됐을 수 있음) 같은 실행에서 다시 보내지 않는다
+                self.last_error = f"exception {type(e).__name__}"
+                print(f"slack: 전송 오류 ({type(e).__name__})")
+                return False
+            if r.status_code == 429 and attempt < 2:  # 전송 제한 — 기다렸다 같은 내용으로 다시
+                try:
+                    wait = min(int(r.headers.get("Retry-After", "5")), 60)
+                except ValueError:
+                    wait = 5
+                print(f"slack: 전송 제한(429) — {wait}초 뒤 다시 보냄")
+                time.sleep(wait)
+                continue
+            break
         if r.status_code == 200:
             self.last_error = ""
             return True
@@ -153,8 +166,11 @@ def _send_notice(self, c: dict) -> bool:
                     print(f"slack: 표 형식 {mode} 로 보냄")
                 self.table_mode = mode
             return True
-        if mode != "text":
-            print(f"slack: {mode} 블록 거부({self.last_error}) → 다음 형식으로 다시 보냄")
+        # 형식을 바꿔 다시 보내는 건 블록 검증 오류(400 invalid_…)일 때만. 그 밖(429·5xx·연결 오류)은 여기서 멈춘다
+        if mode == "text" or not re.match(r"400 invalid_", self.last_error):
+            print(f"slack: 공고 전송 실패({self.last_error}) — 형식을 바꾸지 않고 멈춤")
+            return False
+        print(f"slack: {mode} 블록 거부({self.last_error}) → 다음 형식으로 다시 보냄")
     return False
 
 

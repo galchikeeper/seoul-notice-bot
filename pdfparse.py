@@ -128,7 +128,12 @@ def parse_table(t: list[list]) -> tuple[list[dict], str]:
             prices.append({"ratio": ratio, "deposit": d, "rent": r})
         if not prices:
             continue                      # 호수만 적힌 이어지는 줄 등
-        area, label = _area_label(cells[cols["area"]])
+        acell = cells[cols["area"]]
+        if acell:
+            carry["area"] = acell
+        elif "area" in carry:
+            acell = carry["area"]            # 세로로 합쳐진 타입 칸(같은 타입의 다른 호실 줄) — 윗줄 타입을 이어 받는다
+        area, label = _area_label(acell)
         kind = " ".join(dict.fromkeys(carry[g] for g in cols["group"] if carry.get(g)))
         out.append({"kind": kind, "label": label, "area": area, "prices": prices})
     if not out:
@@ -173,23 +178,25 @@ def parse_pdf_bytes(data: bytes) -> tuple[list[dict], str]:
                 for r in rows:
                     if r not in out:
                         out.append(r)
+    # 일부 표만 읽혔으면 행과 함께 실패 사유도 돌려준다(부르는 쪽이 '전부 읽음'으로 오해하지 않게)
     if out:
-        return out, ""
+        return out, "; ".join(reasons)
     return [], ("; ".join(reasons) if reasons else "공급 표를 찾지 못함")
 
 
-def fetch_types(pdf_url: str, timeout: int = 90) -> list[dict]:
-    """PDF 주소 → 타입 목록. 실패하면 [] (부르는 쪽에서 '확인 실패')."""
+def fetch_types(pdf_url: str, timeout: int = 90, with_status: bool = False):
+    """PDF 주소 → 타입 목록. 실패하면 [] (부르는 쪽에서 '확인 실패').
+    with_status=True 면 (목록, 전부 읽었는지) 를 돌려준다."""
     try:
         r = requests.get(pdf_url, headers=UA, timeout=timeout)
         r.raise_for_status()
         rows, why = parse_pdf_bytes(r.content)
     except Exception as e:
         print(f"pdf: 읽기 실패 ({type(e).__name__})")
-        return []
+        return ([], False) if with_status else []
     if why:
-        print(f"pdf: 표 확인 실패 — {why[:120]}")
-    return rows
+        print(f"pdf: 표 확인 실패{'(일부)' if rows else ''} — {why[:120]}")
+    return (rows, not why) if with_status else rows
 
 
 def fmt_num(v: float) -> str:

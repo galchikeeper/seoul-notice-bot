@@ -361,17 +361,19 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     top = (f"⚠️ {dd} · " if urgent and dd else "") + f"{name} · 마감 {deadline}"
 
     types = n.get("types") or []
+    complete = n.get("types_complete", True)
     if not types and fetch_pdf and n.get("pdf"):
         try:
-            types = fetch_types(n["pdf"])
+            types, complete = fetch_types(n["pdf"], with_status=True)
         except Exception as e:
             print(f"slack: PDF 읽기 실패 {n.get('board_id')} ({type(e).__name__})")
-            types = []
+            types, complete = [], False
 
     known = [t for t in types if _area_val(t) is not None]
     kept = [t for t in types if _area_val(t) is None or _area_val(t) >= MIN_AREA]
-    skip = bool(types) and len(known) == len(types) and not kept      # 모든 타입이 면적 미만
-    area_unknown = (not types) or any(_area_val(t) is None for t in kept)
+    # 모든 타입이 면적 미만일 때만 뺀다. 표 일부를 못 읽었으면(못 읽은 쪽에 큰 타입이 있을 수 있음) 빼지 않는다
+    skip = bool(types) and complete and len(known) == len(types) and not kept
+    area_unknown = (not types) or (not complete) or any(_area_val(t) is None for t in kept)
 
     if kept:
         rows = [[t["label"] or "확인 실패", t["area"] or "확인 실패", short_kind(t["kind"]), p["ratio"],
@@ -384,8 +386,12 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
         rows = None                                                      # PDF 가 없는 출처(힐스테이트·SH·엘리스 등)
         fallback = "평형·보증금·월세: 공고문 확인"
 
+    if rows and kept and not complete:
+        rows.append(["확인 실패"] * 6)                                   # 읽지 못한 표가 더 있음
     kind = kind_of(title) if title else "모집공고"
     note = f"단위: 만원 · 보증금 비율마다 한 행 · {kind} · 자격 공고문 확인"
+    if not complete and types:
+        note += " · 일부 표를 읽지 못함(공고문 확인)"
     if len(kept) < len(types) and not skip:
         note += f" · 전용 {MIN_AREA:g}㎡ 미만 {len(types) - len(kept)}개 타입 제외"
     return {"top": top, "flags": ["📐 면적 확인 필요"] if area_unknown else [],
@@ -419,7 +425,7 @@ def slack_test() -> int:
                 break
             if not n.get("pdf"):
                 continue
-            n["types"] = fetch_types(n["pdf"])
+            n["types"], n["types_complete"] = fetch_types(n["pdf"], with_status=True)
             if not n["types"]:
                 continue
             c = slack_item(n, today, fetch_pdf=False)
