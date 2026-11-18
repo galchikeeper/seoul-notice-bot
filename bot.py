@@ -328,8 +328,28 @@ def _apply_url(n: dict) -> str:
     return u if u and len(u) <= 3000 and "soco.seoul.go.kr" not in u else ""
 
 
+MIN_AREA = float(os.environ.get("MIN_AREA", "30"))   # 전용 이 값(㎡) 미만 타입은 표에서 뺀다
+
+
+def short_kind(kind: str) -> str:
+    """'청년 또는 신혼 부부 특별' → '청년·신혼 특별' (표 칸이 좁아 짧게)."""
+    k = kind or ""
+    y, h = "청년" in k, "신혼" in k
+    base = "청년·신혼" if y and h else "청년" if y else "신혼" if h else ""
+    sup = "특별" if "특별" in k else "일반" if "일반" in k else ""
+    return " ".join(x for x in (base, sup) if x) or k[:10]
+
+
+def _area_val(t: dict) -> float | None:
+    try:
+        return float(t["area"]) if t.get("area") else None
+    except ValueError:
+        return None
+
+
 def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
-    """공고 1건 → 슬랙 카드 1개에 들어갈 값. 모르는 값은 지어내지 않고 '공고문 확인'."""
+    """공고 1건 → 슬랙 메시지 1개에 들어갈 값. 모르는 값은 지어내지 않고 '확인 실패'·'공고문 확인'.
+    전용 MIN_AREA㎡ 미만 타입은 표에서 빼고, 모든 타입이 미만이면 skip=True(보내지 않음)."""
     title = n.get("title", "")
     name = n.get("name") or clean_name(title) or "공고"
     left = n.get("days_left")
@@ -337,7 +357,8 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
         left = S.dday_days(n["deadline"], today)
     dd = n.get("dday") or (S.dday(n["deadline"], today) if n.get("deadline") else "")
     urgent = left is not None and 0 <= left <= URGENT_DAYS
-    head = f"⚠ 마감 {dd} · {name}" if urgent and dd else name
+    deadline = n.get("deadline") or "공고문 확인"
+    top = (f"⚠️ {dd} · " if urgent and dd else "") + f"{name} · 마감 {deadline}"
 
     types = n.get("types") or []
     if not types and fetch_pdf and n.get("pdf"):
@@ -346,18 +367,33 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
         except Exception as e:
             print(f"slack: PDF 읽기 실패 {n.get('board_id')} ({type(e).__name__})")
             types = []
-    if types:
-        summary = type_lines(types)
+
+    known = [t for t in types if _area_val(t) is not None]
+    kept = [t for t in types if _area_val(t) is None or _area_val(t) >= MIN_AREA]
+    skip = bool(types) and len(known) == len(types) and not kept      # 모든 타입이 면적 미만
+    area_unknown = (not types) or any(_area_val(t) is None for t in kept)
+
+    if kept:
+        rows = [[t["label"] or "확인 실패", t["area"] or "확인 실패", short_kind(t["kind"]), p["ratio"],
+                 fmt_num(p["deposit"]), fmt_num(p["rent"])] for t in kept for p in t["prices"]]
+        fallback = type_lines(kept)
     elif n.get("pdf"):
-        summary = "평형·보증금·월세: 확인 실패 (공고문 확인)"
+        rows = [["확인 실패"] * 6]                                        # 표를 못 읽음 — 채우지 않는다
+        fallback = "평형·보증금·월세: 확인 실패 (공고문 확인)"
     else:
-        summary = "평형·보증금·월세: 공고문 확인"     # PDF 가 없는 출처(힐스테이트·리츠)
+        rows = None                                                      # PDF 가 없는 출처(힐스테이트·SH·엘리스 등)
+        fallback = "평형·보증금·월세: 공고문 확인"
 
     kind = kind_of(title) if title else "모집공고"
-    qual = "자격 공고문 확인"                # 자격은 공고마다 달라 읽은 값이 없으면 지어내지 않는다
-    meta = f"마감 {n.get('deadline') or '공고문 확인'} · {kind} · {qual}"
-    return {"title": head, "summary": summary, "meta": meta, "urgent": urgent,
-            "notice_url": n["url"], "apply_url": _apply_url(n)}
+    note = f"단위: 만원 · 보증금 비율마다 한 행 · {kind} · 자격 공고문 확인"
+    if len(kept) < len(types) and not skip:
+        note += f" · 전용 {MIN_AREA:g}㎡ 미만 {len(types) - len(kept)}개 타입 제외"
+    return {"top": top, "flags": ["📐 면적 확인 필요"] if area_unknown else [],
+            "rows": rows, "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
+            "urgent": urgent, "skip": skip, "dropped_types": len(types) - len(kept),
+            "notice_url": n["url"], "apply_url": _apply_url(n),
+            # 예전 카드 형식(send_notices)과의 호환용
+            "title": top, "summary": fallback, "meta": note}
 
 
 def _with_deadline(n: dict, d: dt.date) -> dict:
@@ -368,47 +404,53 @@ def _with_deadline(n: dict, d: dt.date) -> dict:
 
 
 def slack_test() -> int:
-    """수동 실행 '슬랙 시험': 최근 실제 공고로 카드 견본 3종을 보낸다.
-    1) 일반 공고 1건  2) 마감 임박(D-1) 1건  3) 신규 여러 건(요약 줄 + 카드 3개).
-    1·2는 마감일만 견본용 가상값으로 바꾼다. 상태 파일·카톡은 건드리지 않는다."""
+    """수동 실행 '슬랙 시험': 최근 실제 공고로 견본 3건을 보낸다(공고 1건 = 메시지 1개, 표 형식).
+    1) 일반  2) 마감 임박(D-1)  3) 면적 확인 필요(PDF 표에 전용면적이 없는 공고).
+    마감일은 견본용 가상값. 상태 파일·카톡은 건드리지 않는다."""
     slk = Slack.from_env()
     if not slk:
         print("slack test: SLACK_WEBHOOK_URL 이 없습니다")
         return 1
     today = dt.datetime.now(KST).date()
+    picks: dict[str, dict] = {}
     try:
-        latest = S.fetch_soco(0, max_pages=1)[:3]
-        if not latest:
-            raise ValueError("공고 0건")
-        for n in latest:                 # PDF 는 공고마다 한 번만 읽는다
-            if not n.get("types") and n.get("pdf"):
-                try:
-                    n["types"] = fetch_types(n["pdf"])
-                except Exception as e:
-                    print(f"slack test: PDF 읽기 실패 {n.get('board_id')} ({type(e).__name__})")
-        normal = slack_item(_with_deadline(latest[0], today + dt.timedelta(days=10)), today)
-        soon = slack_item(_with_deadline(latest[min(1, len(latest) - 1)], today + dt.timedelta(days=1)), today)
-        many = [slack_item(n, today) for n in latest]
+        for n in S.fetch_soco(0, max_pages=3):
+            if len(picks) == 3:
+                break
+            if not n.get("pdf"):
+                continue
+            n["types"] = fetch_types(n["pdf"])
+            if not n["types"]:
+                continue
+            c = slack_item(n, today, fetch_pdf=False)
+            if c["skip"]:
+                continue
+            if c["flags"]:
+                picks.setdefault("area", n)
+            elif "normal" not in picks:
+                picks["normal"] = n
+            elif "soon" not in picks:
+                picks["soon"] = n
     except Exception as e:
         print(f"slack test: 견본 공고 읽기 실패 ({type(e).__name__})")
-        slk.send_text("🧪 seoul-notice-bot 슬랙 시험: 견본 공고를 읽지 못했습니다(연결만 확인됨)")
+    if len(picks) < 3:
+        print(f"slack test: 견본으로 쓸 공고를 다 찾지 못함 ({sorted(picks)})")
+        slk.send_text("🧪 seoul-notice-bot 슬랙 시험: 견본 공고를 다 찾지 못했습니다(연결만 확인됨)")
         return 1
 
-    note = "(시험 · 마감일은 견본용 가상값 · 상태 파일 변경 없음)"
-    n_urgent = sum(1 for c in many if c["urgent"])
-    samples = [
-        ("일반 공고", [normal], f"[견본 1/3] 일반 공고 1건 {note}"),
-        ("마감 임박 D-1", [soon], f"[견본 2/3] 마감 임박(D-1) 공고 1건 {note}"),
-        ("신규 여러 건", many,
-         f"[견본 3/3] 🏠 신규 {len(many)}건 · 마감임박 {n_urgent}건 (시험 · 최근 실제 공고 · 상태 파일 변경 없음)"),
-    ]
+    plan = [("normal", "일반", today + dt.timedelta(days=10)),
+            ("soon", "마감 임박 D-1", today + dt.timedelta(days=1)),
+            ("area", "면적 확인 필요", today + dt.timedelta(days=10))]
     all_ok = True
-    for i, (label, cards, header) in enumerate(samples, 1):
-        sent, failed = slk.send_notices(cards, header=header)
-        ok = bool(sent) and not failed
+    for i, (k, label, d) in enumerate(plan, 1):
+        c = slack_item(_with_deadline(picks[k], d), today, fetch_pdf=False)
+        c["top"] = f"[견본 {i}/3] " + c["top"]
+        c["note"] += " · 🧪 시험(마감일은 견본용 가상값, 상태 파일 변경 없음)"
+        ok = slk.send_notice(c)
         all_ok = all_ok and ok
-        print(f"slack test: 견본 {i}/3 {label} — {'ok' if ok else 'fail'} (카드 {len(cards)}개)")
-    print(f"slack test: {'ok' if all_ok else 'fail'} (board_id {[n.get('board_id') for n in latest]})")
+        print(f"slack test: 견본 {i}/3 {label} — {'ok' if ok else 'fail'} "
+              f"(board_id {picks[k].get('board_id')}, 표 {len(c['rows'] or [])}행, 형식 {slk.table_mode or 'text'})")
+    print(f"slack test: {'ok' if all_ok else 'fail'} · 표 형식 {slk.table_mode or '없음'}")
     return 0 if all_ok else 1
 
 
@@ -519,9 +561,14 @@ def main() -> int:
                 continue
             seen.add(key)
             cards.append(slack_item(n, today))
+        small = [c for c in cards if c["skip"]]
+        cards = [c for c in cards if not c["skip"]]
+        print(f"slack: 전용 {MIN_AREA:g}㎡ 미만으로 제외 {len(small)}건"
+              + (" — " + ", ".join(c["top"][:30] for c in small) if small else ""))
         n_urgent = sum(1 for c in cards if c["urgent"])
+        n_new = sum(1 for c in cards if not c["urgent"])
         if len(cards) > 1:
-            header = f"🏠 신규 {len(news)}건 · 마감임박 {n_urgent}건"
+            header = f"🏠 신규 {n_new}건 · 마감임박 {n_urgent}건"
         elif not cards and errors:
             header = f"⚠ {stamp} 확인 일부 실패 · 확인된 곳에는 신규·마감임박 없음"
         elif not cards:
@@ -529,8 +576,18 @@ def main() -> int:
         else:
             header = ""
         footer = f"⚠ 확인 실패 {len(errors)}건: " + ", ".join(e[:40] for e in errors) if errors else ""
-        slack_msgs, slack_failed = slk.send_notices(cards, header=header, footer=footer)
-        print(f"slack: 카드 {len(cards)}개 / 메시지 {slack_msgs}건 성공 / {slack_failed}건 실패")
+        if header or footer:                       # 요약 줄은 따로 한 메시지, 공고는 1건 = 메시지 1개
+            if slk.send_text("\n".join(x for x in (f"*{header}*" if header else "", footer) if x)):
+                slack_msgs += 1
+            else:
+                slack_failed += 1
+        for c in cards:
+            if slk.send_notice(c):
+                slack_msgs += 1
+            else:
+                slack_failed += 1
+        print(f"slack: 공고 {len(cards)}건 / 메시지 {slack_msgs}건 성공 / {slack_failed}건 실패"
+              f" / 표 형식 {slk.table_mode or '없음'}")
         if slack_failed and not kk:
             # 슬랙이 유일한 채널인데 실패하면 상태를 저장하지 않는다 → 다음 실행에서 다시 보낸다
             print("⚠ 슬랙 전송 실패 — 상태 저장 없이 종료(다음 실행에서 재발송)")
