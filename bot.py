@@ -16,6 +16,7 @@ import sources as S
 from pdfparse import fetch_types
 from card import render
 from kakao import Kakao, update_github_secret
+from slack import Slack
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / "state.json"
@@ -256,7 +257,24 @@ def card_data(n: dict, today: dt.date) -> dict:
 
 # ─────────────────────────── 메인 ───────────────────────────
 
+def slack_test() -> int:
+    """수동 실행 '슬랙 시험': 시험 메시지 1건만 보낸다. 상태 파일·카톡은 건드리지 않는다."""
+    sl = Slack.from_env()
+    if not sl:
+        print("slack test: SLACK_WEBHOOK_URL 이 없습니다")
+        return 1
+    now = dt.datetime.now(KST)
+    ok = sl.send_text(f"🔔 seoul-notice-bot 슬랙 시험 메시지\n"
+                      f"{now:%Y-%m-%d %H:%M} KST · 상태 파일·카톡은 건드리지 않음\n"
+                      "https://soco.seoul.go.kr/youth/main/main.do")
+    print("slack test:", "ok" if ok else "fail")
+    return 0 if ok else 1
+
+
 def main() -> int:
+    if os.environ.get("SLACK_TEST") == "1":
+        return slack_test()
+
     today = dt.datetime.now(KST).date()
     state = load_state()
     news, errors, open_now = collect(state, today)
@@ -271,6 +289,8 @@ def main() -> int:
     if not dry:
         kk = Kakao(rest_key, refresh, secret)
         kk.refresh()
+    # 슬랙: 카톡과 같은 내용을 함께 보낸다(카톡 끄기 전 병행 기간). 드라이런이면 보내지 않는다.
+    sl = None if dry else Slack.from_env()
 
     stamp = today.strftime("%-m/%-d")
 
@@ -291,40 +311,65 @@ def main() -> int:
         blocks.append((f"⚠ 마감임박 {r['dday']} · {r['name']}\n"
                        f"마감 {r['deadline']}\n{r.get('addr','')}\n{r['url']}", r["url"]))
     shown = {str(r.get("board_id") or r.get("url")) for r in urgent_open[:5]}
-    for n in news[:5]:
+    kakao_n = len(blocks)                # 카톡: 신규는 앞 5건 안에서만(기존 동작 유지)
+    for i, n in enumerate(news):
         if str(n.get("board_id") or n.get("url")) in shown:
             continue                     # 마감임박으로 이미 위에 올린 건 두 번 쓰지 않는다
         nm = n.get("name") or clean_name(n["title"])
         blocks.append((f"🆕 {nm}\n마감 {n.get('deadline') or '공고문 확인'}\n"
                        f"{n.get('addr','')}\n{n['url']}", n["url"]))
+        if i < 5:
+            kakao_n = len(blocks)
 
-    for body, link in blocks:
-        print(body, "\n---")
-        if kk:
-            kk.send_text(body, link=link)
+    slack_sent = 0
+    for j, (body, link) in enumerate(blocks):
+        if j < kakao_n:
+            print(body, "\n---")
+            if kk:
+                kk.send_text(body, link=link)
+        if sl and sl.send_text(body):    # 슬랙: 신규 전부
+            slack_sent += 1
 
     # 2) 카드
     sent = 0
     CARDS.mkdir(exist_ok=True)
-    for n in news[:CARD_LIMIT]:
-        d = card_data(n, today)
-        fname = f"{today:%Y%m%d}-{slug(d['name'])}.png"
-        path = CARDS / fname
-        asyncio.run(render(d, str(path)))
+    card_targets = news if sl else news[:CARD_LIMIT]   # 슬랙은 CARD_LIMIT 없이 전부
+    for k, n in enumerate(card_targets):
+        try:
+            d = card_data(n, today)
+            fname = f"{today:%Y%m%d}-{slug(d['name'])}.png"
+            path = CARDS / fname
+            asyncio.run(render(d, str(path)))
+        except Exception as e:
+            if k < CARD_LIMIT:
+                raise                    # 카톡 카드 대상은 기존과 같이 실패를 그대로 올린다
+            print(f"slack card skip: {n.get('board_id')} ({type(e).__name__})")
+            continue                     # 슬랙 전용 추가 카드 실패는 건너뛰고 상태 저장까지 간다
         print("card:", fname)
 
-        if kk and REPO:
-            img = CDN.format(repo=REPO, branch=BRANCH, name=fname)
-            dep = next((t["deposit"] for t in d["types"] if t["deposit"] != "—"), "")
-            desc = " · ".join(x for x in [
-                d["addr"], d["supply"], f"마감 {d['deadline']}",
-                f"보증금 {dep}만원" if dep else "", d["url"]] if x)
-            items = [(t["name"][:6], f"{t['area'].replace('전용 ','')} {t['deposit']}")
-                     for t in d["types"] if t["deposit"] != "—"]
+        img = CDN.format(repo=REPO, branch=BRANCH, name=fname) if REPO else ""
+        dep = next((t["deposit"] for t in d["types"] if t["deposit"] != "—"), "")
+        desc = " · ".join(x for x in [
+            d["addr"], d["supply"], f"마감 {d['deadline']}",
+            f"보증금 {dep}만원" if dep else "", d["url"]] if x)
+        items = [(t["name"][:6], f"{t['area'].replace('전용 ','')} {t['deposit']}")
+                 for t in d["types"] if t["deposit"] != "—"]
+
+        if kk and REPO and k < CARD_LIMIT:
             kk.send_feed(title=f"{d['name']} {d['dday']}", desc=desc,
                          image_url=img, link=n["url"],
                          button="공고 보기", items=items)
             sent += 1
+
+        if sl:
+            lines = [d["addr"], d["supply"], f"마감 {d['deadline']}",
+                     f"보증금 {dep}만원" if dep else "",
+                     *[f"{a} {b}" for a, b in items],
+                     f"공고 {n['url']}"]
+            if d["url"] != n["url"]:
+                lines.append(f"신청 {d['url']}")
+            if sl.send_card(title=f"{d['name']} {d['dday']}", lines=lines, image_url=img):
+                slack_sent += 1
 
     # 3) 상태 저장
     # 마감돼서 건너뛴 공고도 '본 것'이므로 최댓값으로 올린다 (매일 재평가 방지)
@@ -350,7 +395,7 @@ def main() -> int:
 
     for e in errors:
         print("ERROR:", e, file=sys.stderr)
-    print(f"\n신규 {len(news)}건 / 카드 발송 {sent}건 / dry_run={dry}")
+    print(f"\n신규 {len(news)}건 / 카드 발송 {sent}건 / 슬랙 발송 {slack_sent}건 / dry_run={dry}")
     return 0
 
 

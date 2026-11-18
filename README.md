@@ -141,3 +141,9 @@ curl -X POST "https://kauth.kakao.com/oauth/token" \
 | 우선 알림 단지 추가 | `sources.py` 의 `FAST_TURNOVER` |
 | 감시 단지 추가 | `sources.py` 의 `SPACEREITS` |
 | 카드 디자인 | `card.py` 의 `build_html` |
+
+## 슬랙 알림 (카톡과 병행)
+
+- Secret `SLACK_WEBHOOK_URL` 이 있으면 카톡과 같은 내용을 슬랙에도 보낸다. 슬랙에는 `CARD_LIMIT` 없이 신규 공고 전부를 보낸다.
+- 수동 실행에서 `slack_test` 를 `1` 로 주면 슬랙에 시험 메시지 1건만 보내고 끝난다(상태 파일·카톡·커밋 없음).
+- 웹훅 주소는 로그에 찍지 않는다(실패 시 상태 코드·예외 종류만).

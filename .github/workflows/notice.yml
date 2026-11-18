@@ -14,6 +14,10 @@ on:
         description: "테스트용 — 마지막 확인 번호를 이 값으로 되돌림 (예: 466)"
         required: false
         default: ""
+      slack_test:
+        description: "슬랙 시험 — 1이면 슬랙에 시험 메시지 1건만 보냄 (상태 파일·카톡 안 건드림)"
+        required: false
+        default: "0"
 
 permissions:
   contents: write
@@ -40,10 +44,11 @@ jobs:
           playwright install --with-deps chromium
 
       - name: 한글 폰트 설치
+        if: inputs.slack_test != '1'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
 
       - name: 되감기 (테스트용)
-        if: inputs.rewind != ''
+        if: inputs.rewind != '' && inputs.slack_test != '1'
         run: |
           python - <<'PY'
           import json, os, pathlib
@@ -62,11 +67,14 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           GH_PAT: ${{ secrets.GH_PAT }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TEST: ${{ inputs.slack_test }}
           DRY_RUN: ${{ inputs.dry_run }}
           CARD_LIMIT: "3"
         run: python bot.py
 
       - name: 결과 커밋
+        if: inputs.slack_test != '1'
         run: |
           git config user.name  "notice-bot"
           git config user.email "notice-bot@users.noreply.github.com"
@@ -75,6 +83,7 @@ jobs:
           git push || true
 
       - name: 오래된 카드 정리 (60일)
+        if: inputs.slack_test != '1'
         run: |
           find cards -name '*.png' -mtime +60 -delete || true
           git add cards/ || true
