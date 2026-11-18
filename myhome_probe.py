@@ -104,6 +104,12 @@ def main() -> int:
     print("myhome: 전국 공급유형별", dict(collections.Counter(g(x, "suplyTyNm") for x in nat).most_common()))
     print("myhome: 전국 상태별", dict(collections.Counter(g(x, "sttusNm") for x in nat).most_common()))
     print("myhome: 전국 지역별", dict(collections.Counter(g(x, "brtcNm") for x in nat).most_common(8)))
+    gg = [x for x in nat if g(x, "brtcNm").startswith("경기")]
+    print(f"myhome: 경기도 {len(gg)}건 · 시군구별", dict(collections.Counter(g(x, "signguNm") for x in gg).most_common()))
+    print("myhome: 경기도 공급유형별", dict(collections.Counter(g(x, "suplyTyNm") for x in gg).most_common()))
+    for x in gg[:3]:
+        print("myhome: 경기 샘플 |", g(x, "rcritPblancDe"), "|", g(x, "suplyInsttNm"), "|", g(x, "suplyTyNm"), "|",
+              g(x, "signguNm"), "|", g(x, "pblancNm")[:50], "| 접수", g(x, "beginDe"), "~", g(x, "endDe"))
     ends = sorted(g(x, "endDe") for x in nat if g(x, "endDe"))
     print(f"myhome: 전국 접수 마감일 범위 {ends[0] if ends else '-'} ~ {ends[-1] if ends else '-'}")
     npriv = [x for x in nat if "민간" in g(x, "suplyTyNm") or "청년안심" in g(x, "pblancNm") or "공공지원" in g(x, "suplyTyNm")]
