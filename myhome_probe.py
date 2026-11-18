@@ -37,7 +37,7 @@ def call(op: str, **params) -> tuple[int, dict | None, str]:
 
 def items_of(j: dict) -> tuple[list[dict], int | None]:
     """응답 모양이 문서에 없어 흔한 모양을 모두 받아 본다."""
-    for path in (("response", "body", "items", "item"), ("response", "body", "items"), ("hsList",), ("dsList",), ("items",)):
+    for path in (("response", "body", "item"), ("response", "body", "items", "item"), ("response", "body", "items"), ("hsList",), ("dsList",), ("items",)):
         x = j
         for p in path:
             x = x.get(p) if isinstance(x, dict) else None
