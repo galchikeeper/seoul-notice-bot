@@ -32,8 +32,8 @@ jobs:
           if os.environ.get("TEST_RUN") == "1":
               text += "\n🧪 수동 시험 발송"
           body = json.dumps({"text": text, "unfurl_links": False}).encode()
-          req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
           try:
+              req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
               with urllib.request.urlopen(req, timeout=30) as r:
                   code = r.status
           except urllib.error.HTTPError as e:      # 주소가 찍히지 않게 상태 코드만
