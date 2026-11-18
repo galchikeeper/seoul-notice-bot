@@ -298,25 +298,56 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
             "notice_url": n["url"], "apply_url": _apply_url(n)}
 
 
+def _with_deadline(n: dict, d: dt.date) -> dict:
+    """견본용: 마감일만 바꾼 사본. 미리 계산된 D-day 값은 지워서 새 마감일로 다시 센다."""
+    m = {k: v for k, v in n.items() if k not in ("dday", "days_left")}
+    m["deadline"] = f"{d.month}/{d.day}"
+    return m
+
+
 def slack_test() -> int:
-    """수동 실행 '슬랙 시험': 최근 실제 공고 1건으로 카드 견본 1개만 보낸다.
-    상태 파일·카톡은 건드리지 않는다."""
+    """수동 실행 '슬랙 시험': 최근 실제 공고로 카드 견본 3종을 보낸다.
+    1) 일반 공고 1건  2) 마감 임박(D-1) 1건  3) 신규 여러 건(요약 줄 + 카드 3개).
+    1·2는 마감일만 견본용 가상값으로 바꾼다. 상태 파일·카톡은 건드리지 않는다."""
     slk = Slack.from_env()
     if not slk:
         print("slack test: SLACK_WEBHOOK_URL 이 없습니다")
         return 1
     today = dt.datetime.now(KST).date()
     try:
-        latest = S.fetch_soco(0, max_pages=1)[0]
-        item = slack_item(latest, today)
+        latest = S.fetch_soco(0, max_pages=1)[:3]
+        if not latest:
+            raise ValueError("공고 0건")
+        for n in latest:                 # PDF 는 공고마다 한 번만 읽는다
+            if not n.get("types") and n.get("pdf"):
+                try:
+                    n["types"] = fetch_types(n["pdf"])
+                except Exception as e:
+                    print(f"slack test: PDF 읽기 실패 {n.get('board_id')} ({type(e).__name__})")
+        normal = slack_item(_with_deadline(latest[0], today + dt.timedelta(days=10)), today)
+        soon = slack_item(_with_deadline(latest[min(1, len(latest) - 1)], today + dt.timedelta(days=1)), today)
+        many = [slack_item(n, today) for n in latest]
     except Exception as e:
         print(f"slack test: 견본 공고 읽기 실패 ({type(e).__name__})")
         slk.send_text("🧪 seoul-notice-bot 슬랙 시험: 견본 공고를 읽지 못했습니다(연결만 확인됨)")
         return 1
-    sent, failed = slk.send_notices(
-        [item], header="🧪 슬랙 카드 견본 · 최근 실제 공고 1건 (시험 실행, 상태 파일 변경 없음)")
-    print(f"slack test: {'ok' if sent and not failed else 'fail'} (board_id {latest.get('board_id')})")
-    return 0 if sent and not failed else 1
+
+    note = "(시험 · 마감일은 견본용 가상값 · 상태 파일 변경 없음)"
+    n_urgent = sum(1 for c in many if c["urgent"])
+    samples = [
+        ("일반 공고", [normal], f"[견본 1/3] 일반 공고 1건 {note}"),
+        ("마감 임박 D-1", [soon], f"[견본 2/3] 마감 임박(D-1) 공고 1건 {note}"),
+        ("신규 여러 건", many,
+         f"[견본 3/3] 🏠 신규 {len(many)}건 · 마감임박 {n_urgent}건 (시험 · 최근 실제 공고 · 상태 파일 변경 없음)"),
+    ]
+    all_ok = True
+    for i, (label, cards, header) in enumerate(samples, 1):
+        sent, failed = slk.send_notices(cards, header=header)
+        ok = bool(sent) and not failed
+        all_ok = all_ok and ok
+        print(f"slack test: 견본 {i}/3 {label} — {'ok' if ok else 'fail'} (카드 {len(cards)}개)")
+    print(f"slack test: {'ok' if all_ok else 'fail'} (board_id {[n.get('board_id') for n in latest]})")
+    return 0 if all_ok else 1
 
 
 def main() -> int:
