@@ -1,0 +1,27 @@
+name: 사이트 읽힘 점검 (읽기 전용)
+
+# 수동 실행만. 발송·상태 파일·커밋·비밀값 없음.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+      - name: 표 읽기 시험 (저장된 실제 공고문 PDF)
+        run: python -m unittest discover tests -v
+      - name: 크로미움 설치 (점검용)
+        run: playwright install --with-deps chromium
+      - name: 사이트 점검
+        run: python probe.py --chromium

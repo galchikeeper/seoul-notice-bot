@@ -11,7 +11,7 @@ on:
         required: false
         default: "0"
       rewind:
-        description: "테스트용 — 마지막 확인 번호를 이 값으로 되돌림 (예: 466)"
+        description: "테스트용 — 마지막 확인 공고 번호(boardId)를 이 값으로 되돌림 (예: 6730)"
         required: false
         default: ""
       slack_test:
@@ -73,9 +73,9 @@ jobs:
           import json, os, pathlib
           p = pathlib.Path("state.json")
           s = json.loads(p.read_text()) if p.exists() else {}
-          s["soco_last_no"] = int(os.environ["REWIND"])
+          s["soco_last_board_id"] = int(os.environ["REWIND"])   # 봇이 읽는 키(예전엔 soco_last_no 를 바꿔 효과가 없었음)
           p.write_text(json.dumps(s, ensure_ascii=False, indent=2))
-          print("rewound to", s["soco_last_no"])
+          print("rewound to", s["soco_last_board_id"])
           PY
         env:
           REWIND: ${{ inputs.rewind }}

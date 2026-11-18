@@ -13,7 +13,7 @@ import asyncio, datetime as dt, json, os, re, sys, unicodedata
 from pathlib import Path
 
 import sources as S
-from pdfparse import fetch_types
+from pdfparse import fetch_types, type_lines, fmt_num
 from card import render
 from kakao import Kakao, update_github_secret
 from slack import Slack
@@ -128,18 +128,32 @@ def collect(state: dict, today: dt.date):
     except Exception as e:
         errors.append(f"청년안심주택 수집 실패: {e}")
 
-    # (B) 힐스테이트 관악 뉴포레 — 글 수가 늘었을 때만, 모집공고일 때만 알림
+    # (B) 힐스테이트 관악 뉴포레 — 처음 보는 글(등록일|제목) 중 모집공고만 알림.
+    #     글 수만 비교하면 여러 글이 한꺼번에 올라오거나 글이 바뀔 때 모집 글을 놓친다.
     try:
         h = S.fetch_hillstate()
-        if h["count"] > state["hillstate_count"] and h["is_recruit"]:
-            news.append({
-                "source": "hillstate", "title": f"힐스테이트 관악 뉴포레 — {h['latest']}",
-                "name": "힐스테이트 관악 뉴포레", "kicker": "예비임차인 모집 · 공공지원민간임대",
-                "addr": "서울 관악구 조원로 25", "station": "신림동",
-                "supply": "1,143세대 · 전용 44/59/84㎡", "operator": "서울리츠4호 · KT리빙",
-                "deadline": "", "dday": "", "urgent": False, "is_recruit": True,
-                "types": [], "url": h["url"], "site": "hillstatenewfore.co.kr", "pdf": None,
-            })
+        if not h["rows"]:
+            raise ValueError("글 목록 0건")
+        seen = state.get("hillstate_seen")
+        keys = [x["key"] for x in h["rows"]]
+        if seen is None:
+            print(f"hillstate: 처음 실행 — 현재 글 {len(keys)}개를 본 것으로 기록(알림 없음)")
+        else:
+            for x in h["rows"]:
+                if x["key"] in seen:
+                    continue
+                if not x["is_recruit"]:
+                    print(f"skip(모집 아님): 힐스테이트 — {x['title'][:50]}")
+                    continue
+                news.append({
+                    "source": "hillstate", "title": f"힐스테이트 관악 뉴포레 — {x['title']}",
+                    "name": "힐스테이트 관악 뉴포레", "kicker": "예비임차인 모집 · 공공지원민간임대",
+                    "addr": "서울 관악구 조원로 25", "station": "신림동",
+                    "supply": "", "operator": "",           # 공고마다 달라 고정값을 넣지 않는다
+                    "deadline": "", "dday": "", "urgent": False, "is_recruit": True,
+                    "types": [], "url": h["url"], "site": "hillstatenewfore.co.kr", "pdf": None,
+                })
+        state["_hillstate_seen_new"] = sorted(set(seen or []) | set(keys))[-200:]
         state["_hillstate_count_new"] = h["count"]
     except Exception as e:
         errors.append(f"힐스테이트 뉴포레 확인 실패: {e}")
@@ -231,14 +245,19 @@ def card_data(n: dict, today: dt.date) -> dict:
     types = n.get("types") or []
     if not types and n.get("pdf"):
         types = fetch_types(n["pdf"])
-    rows = [{"name": t["label"], "area": t["area"],
-             "deposit": t["deposit"], "rent": t["rent"]} for t in types]
+    def _rng(vals):
+        lo, hi = min(vals), max(vals)
+        return fmt_num(lo) if lo == hi else f"{fmt_num(lo)}~{fmt_num(hi)}"
+    rows = [{"name": t["label"] or "타입",
+             "area": f"전용 {t['area']}㎡" if t["area"] else "전용면적 확인 실패",
+             "deposit": _rng([p["deposit"] for p in t["prices"]]),
+             "rent": _rng([p["rent"] for p in t["prices"]])} for t in types[:4]]
     if not rows:
-        rows = [{"name": "평형별 조건", "area": "공고문 PDF 확인",
+        rows = [{"name": "평형별 조건", "area": "확인 실패",
                  "deposit": "—", "rent": "—"}]
 
-    quals = ["만 19~39세 무주택", "청년 미혼 / 신혼 7년 이내",
-             "소득·자산 요건 충족", "공고문에서 최종 확인"]
+    # 자격은 공고마다 달라 지어내지 않는다(예전엔 '만 19~39세 무주택' 등을 고정으로 넣었음)
+    quals = ["자격 조건: 공고문 확인"]
 
     return {
         "kicker": n.get("kicker") or f"{kind_of(n['title'])} · 청년안심주택",
@@ -284,12 +303,11 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
             print(f"slack: PDF 읽기 실패 {n.get('board_id')} ({type(e).__name__})")
             types = []
     if types:
-        t = types[0]
-        summary = f"{t['area']} · 보증금 {t['deposit']}만원 · 월세 {t['rent']}만원"
-        if len(types) > 1:
-            summary += f" (외 {len(types) - 1}개 타입)"
+        summary = type_lines(types)
+    elif n.get("pdf"):
+        summary = "평형·보증금·월세: 확인 실패 (공고문 확인)"
     else:
-        summary = "전용면적·보증금·월세: 공고문 확인"
+        summary = "평형·보증금·월세: 공고문 확인"     # PDF 가 없는 출처(힐스테이트·리츠)
 
     kind = kind_of(title) if title else "모집공고"
     qual = "자격 공고문 확인"                # 자격은 공고마다 달라 읽은 값이 없으면 지어내지 않는다
@@ -481,6 +499,8 @@ def main() -> int:
         state["soco_last_board_id"] = max(seen_max, state["soco_last_board_id"])
     if "_hillstate_count_new" in state:
         state["hillstate_count"] = state.pop("_hillstate_count_new")
+    if "_hillstate_seen_new" in state:
+        state["hillstate_seen"] = state.pop("_hillstate_seen_new")
     for sl, v in state.pop("_space_new", {}).items():
         state["spacereits"][sl] = v
     state["checked"] = str(today)

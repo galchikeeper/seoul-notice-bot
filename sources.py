@@ -287,16 +287,31 @@ def _row_key(text: str) -> tuple[str, str]:
 
 
 def fetch_hillstate() -> dict:
+    """공지 게시판의 글 줄(번호·제목·등록일)을 돌려준다.
+
+    예전에는 페이지의 모든 링크 중 '모집/발표/공지'가 든 첫 글자를 최신 글로 봤는데,
+    메뉴 '공공지원민간임대주택'('공공지원' 안의 '공지')이 먼저 잡혀 모집 판정이 늘 '아님'이었다.
+    """
     r = _get_retry(HILLSTATE)
     r.encoding = r.apparent_encoding
     text = _strip(r.text)
     m = re.search(r"전체\s*[:：]\s*(\d+)", text)
     count = int(m.group(1)) if m else 0
     soup = BeautifulSoup(r.text, "html.parser")
-    titles = [a.get_text(strip=True) for a in soup.select("a") if a.get_text(strip=True)]
-    latest = next((t for t in titles if "모집" in t or "발표" in t or "공지" in t), "")
-    return {"count": count, "latest": latest,
-            "is_recruit": is_recruit(latest), "url": HILLSTATE}
+    rows = []
+    for tr in soup.select("tr"):
+        tds = [td.get_text(" ", strip=True) for td in tr.select("td")]
+        if len(tds) < 4:
+            continue
+        date = next((x for x in tds if re.fullmatch(r"\d{4}-\d{2}-\d{2}", x)), "")
+        if not date:
+            continue
+        title = tds[1]
+        a = tr.select_one("a[href]")
+        rows.append({"no": tds[0], "title": title, "date": date,
+                     "key": f"{date}|{title}"[:150], "is_recruit": is_recruit(title),
+                     "href": a["href"] if a else ""})
+    return {"count": count, "rows": rows, "url": HILLSTATE}
 
 
 def fetch_spacereits(slug: str) -> dict:
