@@ -254,25 +254,37 @@ def tnorm(t: str) -> str:
 
 
 def dedupe(news: list[dict], state: dict) -> list[dict]:
-    """마이홈 공고가 다른 출처(청년안심·SH·엘리스 등)와 같은 공고면 마이홈 쪽을 빼서 한 번만 알린다.
-    다른 출처 공고는 빼지 않는다(청년안심주택 '추가모집공고'는 같은 제목으로 매달 새로 올라온다).
-    이전 실행에서 다른 출처로 이미 알린 제목(alerted_titles)과 같아도 마이홈 쪽을 뺀다."""
-    before = state.get("alerted_titles", [])
-    others = [tnorm(n.get("raw_title") or n.get("title")) for n in news if n.get("source") != "myhome"]
-    others = [k for k in others if len(k) >= 10]
-
-    def same(k, o):
-        return k == o or (len(k) >= 15 and len(o) >= 15 and (k in o or o in k))
-
-    keep = []
+    """같은 공고가 마이홈과 다른 출처에 함께 오면 한 번만 알린다. 제목(정규화)이 정확히 같을 때만 같은 공고로 본다
+    ('[정정]' 같은 앞뒤 글자가 붙은 새 공고를 빼지 않으려고 부분 일치는 쓰지 않는다).
+    - 같은 실행: 마이홈 쪽을 빼고, 남는 공고에 없는 마감 정보를 마이홈에서 옮긴다.
+    - 이전 실행: 다른 출처로 먼저 알린 제목(alerted_titles)이면 마이홈을 빼고,
+      마이홈으로 먼저 알린 제목(myhome_alerted)이면 SH·엘리스 쪽을 뺀다.
+      청년안심주택(soco)은 빼지 않는다('추가모집공고'가 같은 제목으로 매달 새로 올라온다)."""
+    before = set(state.get("alerted_titles", []))
+    mh_before = set(state.get("myhome_alerted", []))
+    key = lambda n: tnorm(n.get("raw_title") or n.get("title"))
+    others = {key(n): n for n in news if n.get("source") != "myhome" and len(key(n)) >= 10}
+    keep, mh_sent = [], []
     for n in news:
-        if n.get("source") == "myhome":
-            k = tnorm(n.get("raw_title") or n.get("title"))
-            if len(k) >= 10 and any(same(k, o) for o in others + before):
-                print(f"skip(다른 출처와 중복): 마이홈 — {(n.get('raw_title') or n['title'])[:50]}")
+        k = key(n)
+        if n.get("source") == "myhome" and len(k) >= 10:
+            twin = others.get(k)
+            if twin is not None:
+                for f in ("deadline", "days_left", "dday", "urgent"):
+                    if not twin.get(f) and n.get(f):
+                        twin[f] = n[f]                    # 마감 정보는 살린다
+                print(f"skip(다른 출처와 중복·합침): 마이홈 — {(n.get('raw_title') or n['title'])[:50]}")
                 continue
+            if k in before:
+                print(f"skip(이미 다른 출처로 알림): 마이홈 — {(n.get('raw_title') or n['title'])[:50]}")
+                continue
+            mh_sent.append(k)
+        elif n.get("source") in ("sh", "elyes") and k in mh_before:
+            print(f"skip(이미 마이홈으로 알림): {n.get('source')} — {(n.get('raw_title') or n['title'])[:50]}")
+            continue
         keep.append(n)
-    state["_new_alerted_titles"] = (others + [o for o in before if o not in others])[:500]
+    state["_new_alerted_titles"] = (list(others) + [o for o in state.get("alerted_titles", []) if o not in others])[:500]
+    state["_new_myhome_alerted"] = (mh_sent + [o for o in state.get("myhome_alerted", []) if o not in mh_sent])[:500]
     return keep
 
 

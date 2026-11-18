@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 import datetime as dt, os, re
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 import requests
 
 BASE = "https://apis.data.go.kr/1613000/HWSPR02/rsdtRcritNtcList"
@@ -21,7 +21,7 @@ def _key() -> str:
 
 def redact(t: str) -> str:
     k = _key()
-    for v in {k, quote(k, safe="")} - {""}:
+    for v in sorted({k, quote(k, safe=""), unquote(k)} - {""}, key=len, reverse=True):
         t = t.replace(v, "***")
     return re.sub(r"(serviceKey=)[^&\s\"'<]+", r"\1***", t, flags=re.I)
 
@@ -64,9 +64,12 @@ def fetch_items(brtc: str, max_pages: int = 10) -> list[dict]:
     while pg <= max_pages:
         body = _get({"brtcCode": brtc, "numOfRows": "100", "pageNo": str(pg)})
         more = _items(body)
-        total = int(body.get("totalCount") or 0)
+        try:
+            total = int(str(body.get("totalCount") or "").replace(",", ""))
+        except ValueError:
+            total = None                              # 모르면 쪽이 꽉 찬 동안 계속 넘긴다
         out += more
-        if not more or len(out) >= total:
+        if not more or (total is not None and len(out) >= total) or (total is None and len(more) < 100):
             break
         pg += 1
     return out
@@ -89,20 +92,15 @@ def in_area(x: dict) -> bool | None:
 
 
 def money(v, kind: str) -> float | None:
-    """원 → 만원. 0·빈 값·애매한 크기는 None('확인 실패'). kind: 'dep' | 'rent'."""
+    """원 → 만원. API 명세에 단위가 없어 크기로 짐작하지 않는다:
+    원 단위가 분명한 값(보증금 ≥ 100만, 월세 ≥ 1만)만 바꾸고, 0·빈 값·그보다 작은 값은 None('확인 실패')."""
     try:
         n = float(str(v).replace(",", ""))
     except (TypeError, ValueError):
         return None
-    if n <= 0:
-        return None
-    if kind == "dep":
-        if n >= 1_000_000:
-            return round(n / 10_000, 2)
-        return n if 100 <= n <= 100_000 else None
-    if n >= 10_000:
+    if n >= (1_000_000 if kind == "dep" else 10_000):
         return round(n / 10_000, 2)
-    return n if 1 <= n <= 500 else None
+    return None
 
 
 def _date(s: str) -> dt.date | None:

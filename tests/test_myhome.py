@@ -29,10 +29,11 @@ class Money(unittest.TestCase):
     def test_money(self):
         self.assertEqual(MH.money("201,700,000", "dep"), 20170)
         self.assertEqual(MH.money("253200", "rent"), 25.32)
-        self.assertEqual(MH.money("9800", "dep"), 9800)
+        self.assertIsNone(MH.money("9800", "dep"))           # 단위를 모르는 작은 값 → 짐작하지 않음
+        self.assertIsNone(MH.money("100000", "dep"))
         self.assertIsNone(MH.money("0", "dep"))
         self.assertIsNone(MH.money("", "rent"))
-        self.assertIsNone(MH.money("500000", "dep"))        # 애매한 크기 → 채우지 않음
+        self.assertIsNone(MH.money("300", "rent"))
 
 
 class Group(unittest.TestCase):
@@ -61,9 +62,12 @@ class Dedupe(unittest.TestCase):
     def test_myhome_dup_dropped(self):
         news = [{"source": "sh", "title": "SH — 2026년 마포구 신혼부부,청년(수요자맞춤형)주택 잔여세대 입주자 모집 공고",
                  "raw_title": "2026년 마포구 신혼부부,청년(수요자맞춤형)주택 잔여세대 입주자 모집 공고"},
-                {"source": "myhome", "title": "마이홈 — x", "raw_title": "2026년 마포구 신혼부부·청년(수요자맞춤형)주택 잔여세대 입주자 모집 공고문"}]
+                {"source": "myhome", "title": "마이홈 — x", "raw_title": "2026년 마포구 신혼부부·청년(수요자맞춤형)주택 잔여세대 입주자 모집 공고문", "source": "myhome"}]
+        news[1]["days_left"], news[1]["dday"], news[1]["urgent"], news[1]["deadline"] = 1, "D-1", True, "2026-11-20"
         out = bot.dedupe(news, {})
         self.assertEqual([n["source"] for n in out], ["sh"])
+        self.assertTrue(out[0]["urgent"])                   # 마감 정보는 남는 쪽으로 옮김
+        self.assertEqual(out[0]["dday"], "D-1")
 
     def test_soco_same_title_kept(self):           # 청년안심 '추가모집공고'는 같은 제목으로 매달 새로 올라온다
         t = "[민간임대] 상봉역 상봉생활 추가모집공고"
@@ -75,6 +79,30 @@ class Dedupe(unittest.TestCase):
         t = "강서 행복주택 입주자 모집공고 2026년 11월"
         out = bot.dedupe([{"source": "myhome", "title": "마이홈 — " + t, "raw_title": t}], {"alerted_titles": [bot.tnorm(t)]})
         self.assertEqual(out, [])
+
+
+class Dedupe2(unittest.TestCase):
+    def test_corrected_notice_not_dropped(self):    # 앞에 [정정]이 붙은 새 공고는 중복이 아니다
+        old = "서울 강서 행복주택 입주자 모집공고"
+        out = bot.dedupe([{"source": "myhome", "title": "x", "raw_title": "[정정] " + old}],
+                         {"alerted_titles": [bot.tnorm(old)]})
+        self.assertEqual(len(out), 1)
+
+    def test_reverse_order(self):                   # 마이홈으로 먼저 알린 뒤 SH 에 같은 공고 → SH 쪽 생략
+        t = "2026년 강서구 청년 매입임대주택 입주자 모집 공고"
+        st = {}
+        bot.dedupe([{"source": "myhome", "title": "x", "raw_title": t}], st)
+        st["myhome_alerted"] = st.pop("_new_myhome_alerted")
+        out = bot.dedupe([{"source": "sh", "title": "SH — " + t, "raw_title": t}], st)
+        self.assertEqual(out, [])
+
+    def test_redact_decoded(self):
+        import os
+        os.environ["MYHOME_API_KEY"] = "FAKE%2BKEY%2FVALUE%3D"
+        try:
+            self.assertNotIn("FAKE+KEY/VALUE=", MH.redact("err FAKE+KEY/VALUE= x"))
+        finally:
+            del os.environ["MYHOME_API_KEY"]
 
 
 if __name__ == "__main__":
