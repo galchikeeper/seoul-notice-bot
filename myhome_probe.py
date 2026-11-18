@@ -88,6 +88,26 @@ def main() -> int:
               g(x, "houseTyNm"), "|", g(x, "pblancNm")[:60], "|", g(x, "signguNm", "fullAdres", "brtcNm"), "|", g(x, "url", "pcUrl")[:90])
     priv = [x for x in allitems if "민간" in g(x, "suplyTyNm") or "청년안심" in g(x, "pblancNm") or "공공지원" in g(x, "suplyTyNm")]
     print(f"myhome: 공공지원민간임대·청년안심주택 관련 {len(priv)}건", [g(x, "pblancNm")[:40] for x in priv[:5]])
+    for x in allitems:
+        print("myhome: 서울 항목 상태 |", g(x, "sttusNm"), "| 모집공고일", g(x, "rcritPblancDe"), "| 접수", g(x, "beginDe"), "~", g(x, "endDe"))
+    # 전국(지역 제한 없음) — 공급유형 종류와 공공지원민간임대 포함 여부
+    nat, pg, ntotal = [], 1, None
+    while pg <= 10:
+        c4, j4, e4 = call("rsdtRcritNtcList", numOfRows="100", pageNo=str(pg))
+        if e4:
+            print(f"myhome: 전국 {pg}쪽 실패 {e4}"); break
+        more, ntotal = items_of(j4)
+        nat += more; pg += 1
+        if not more or (ntotal and len(nat) >= int(ntotal)):
+            break
+    print(f"myhome: 전국 totalCount={ntotal} · 받은 {len(nat)}건")
+    print("myhome: 전국 공급유형별", dict(collections.Counter(g(x, "suplyTyNm") for x in nat).most_common()))
+    print("myhome: 전국 상태별", dict(collections.Counter(g(x, "sttusNm") for x in nat).most_common()))
+    print("myhome: 전국 지역별", dict(collections.Counter(g(x, "brtcNm") for x in nat).most_common(8)))
+    ends = sorted(g(x, "endDe") for x in nat if g(x, "endDe"))
+    print(f"myhome: 전국 접수 마감일 범위 {ends[0] if ends else '-'} ~ {ends[-1] if ends else '-'}")
+    npriv = [x for x in nat if "민간" in g(x, "suplyTyNm") or "청년안심" in g(x, "pblancNm") or "공공지원" in g(x, "suplyTyNm")]
+    print(f"myhome: 전국 공공지원민간임대·청년안심주택 관련 {len(npriv)}건", [g(x, "pblancNm")[:40] for x in npriv[:5]])
     c3, j3, e3 = call("ltRsdtRcritNtcList", brtcCode="11", numOfRows="10", pageNo="1")
     it3, t3 = items_of(j3) if j3 else ([], None)
     print(f"myhome: 공공분양 조회 HTTP {c3} {e3 or 'OK'} · 서울 totalCount={t3}")
