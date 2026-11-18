@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """서울 공공지원민간임대·청년안심주택 신규 공고 → 슬랙 알림 (카카오톡은 KAKAO_ENABLED 로 켜고 끔).
 
-GitHub Actions 에서 평일 08:00 KST 에 실행된다.
+GitHub Actions 에서 평일 07:47 KST 에 실행된다.
   1) state.json 의 마지막 확인 지점을 읽고
   2) 소스 4곳에서 신규 공고를 찾고
   3) 상위 N건은 공고문 PDF까지 열어 카드 이미지를 만들고
@@ -321,6 +321,9 @@ def slack_test() -> int:
 
 def main() -> int:
     if os.environ.get("SLACK_TEST") == "1":
+        if os.environ.get("DRY_RUN") == "1":
+            print("slack test: dry_run=1 이라 보내지 않음")
+            return 0
         return slack_test()
 
     today = dt.datetime.now(KST).date()

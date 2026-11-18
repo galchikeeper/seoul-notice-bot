@@ -2,8 +2,8 @@ name: 서울 임대주택 공고 알림
 
 on:
   schedule:
-    # 평일 08:00 KST = 23:00 UTC (일~목)
-    - cron: "0 23 * * 0-4"
+    # 평일 07:47 KST = 22:47 UTC (일~목). 정시(:00) 예약은 GitHub 대기열에서 몇 시간씩 밀려 비켜 잡는다
+    - cron: "47 22 * * 0-4"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -32,6 +32,19 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      # 슬랙이 유일한 알림 수단이므로 웹훅이 비어 있으면 조용히 넘어가지 않고 여기서 실패로 멈춘다.
+      # (실패하면 뒤의 결과 커밋도 돌지 않아 '커밋 = 발송 성공' 구조가 유지된다)
+      - name: 슬랙 웹훅 점검
+        if: inputs.dry_run != '1'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL//[[:space:]]/}" ]; then
+            echo "::error::SLACK_WEBHOOK_URL 이 비어 있습니다 — 알림을 보낼 수 없어 실행을 멈춥니다"
+            exit 1
+          fi
+          echo "SLACK_WEBHOOK_URL 있음"
 
       - uses: actions/setup-python@v5
         with:
@@ -76,16 +89,16 @@ jobs:
         run: python bot.py
 
       - name: 결과 커밋
-        if: inputs.slack_test != '1'
+        if: inputs.slack_test != '1' && inputs.dry_run != '1'
         run: |
           git config user.name  "notice-bot"
           git config user.email "notice-bot@users.noreply.github.com"
           git add state.json cards/ || true
-          git diff --staged --quiet || git commit -m "공고 확인 $(date -u +%Y-%m-%d)"
-          git push || true
+          git diff --staged --quiet || git commit -m "공고 확인 $(TZ=Asia/Seoul date +%Y-%m-%d)"
+          git push   # 실패를 숨기지 않는다(발송은 됐는데 커밋이 안 올라간 상황을 실패로 드러냄)
 
       - name: 오래된 카드 정리 (60일)
-        if: inputs.slack_test != '1'
+        if: inputs.slack_test != '1' && inputs.dry_run != '1'
         run: |
           find cards -name '*.png' -mtime +60 -delete || true
           git add cards/ || true
