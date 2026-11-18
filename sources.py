@@ -389,8 +389,11 @@ def _norm(name: str) -> str:
     return re.sub(r"\s+|역|\(청년안심주택\)", "", name or "")
 
 
+NEAR_RE = re.compile(r"경기도\s*(과천|안양|성남|광명|의왕|군포|하남)시")   # 사용자가 정한 서울 근교 7곳
+
+
 def elyes_regions(cache: dict) -> dict:
-    """단지명 → '서울' / '서울 밖'. 단지 페이지 본문에 서울 밖 주소가 있으면 '서울 밖'.
+    """단지명 → '서울' / '근교'(경기 7곳) / '범위 밖'. 단지 페이지 본문의 주소로 판단한다.
     (본문 아래 회사 주소 '서울 서초구 잠원로'는 모든 페이지에 있어 서울 판별에 쓰지 않는다)"""
     r = requests.post(f"{ELYES}/complex/data/stay/list-all", headers=ELYES_FORM_H, timeout=TIMEOUT)
     out = dict(cache)
@@ -404,7 +407,10 @@ def elyes_regions(cache: dict) -> dict:
         except Exception:
             continue                       # 이번엔 모름 → 저장하지 않고 다음 실행에서 다시 본다
         if re.search(r"서울(?:특별시|시)?\s*[가-힣]+구", t.replace("서초구 잠원로", "")) or NON_SEOUL_RE.search(t):
-            out[name] = "서울 밖" if NON_SEOUL_RE.search(t) else "서울"
+            if not NON_SEOUL_RE.search(t):
+                out[name] = "서울"
+            else:
+                out[name] = "근교" if NEAR_RE.search(t) else "범위 밖"
     return out
 
 
@@ -433,5 +439,5 @@ def fetch_elyes(regions: dict) -> list[dict]:
         reg = elyes_region_of(title, regions)
         out.append({"id": x.get("nt_idx"), "title": title, "date": x.get("row_input_date") or "",
                     "region": reg, "url": f"{ELYES}/post/recruit",
-                    "mine": mine(title) and reg != "서울 밖"})
+                    "mine": mine(title) and reg not in ("범위 밖", "서울 밖")})
     return out

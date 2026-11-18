@@ -13,6 +13,7 @@ import asyncio, datetime as dt, json, os, re, sys, unicodedata
 from pathlib import Path
 
 import sources as S
+import myhome as MH
 from pdfparse import fetch_types, type_lines, fmt_num
 from card import render
 from kakao import Kakao, update_github_secret
@@ -203,28 +204,76 @@ def collect(state: dict, today: dt.date):
             raise ValueError("글 목록 0건")
         board("SH", "sh_seen", sh, lambda x: {
             "board_id": f"sh:{x['id']}", "source": "sh", "title": f"SH — {x['title']}", "name": x["title"][:40],
+            "raw_title": x["title"],
             "kicker": "SH 주택임대 공고", "addr": "", "deadline": "", "dday": "", "urgent": False,
             "is_recruit": True, "types": [], "url": x["url"], "site": "", "pdf": None})
     except Exception as e:
         errors.append(f"SH 주택임대 확인 실패: {type(e).__name__}")
 
     try:
-        regions = S.elyes_regions(state.get("elyes_regions", {}))
-        state["_new_elyes_regions"] = regions
+        # 지역 기준이 '서울'에서 '서울+근교 7곳'으로 바뀌어(2026-11-19) 판정을 새로 저장한다(elyes_regions2)
+        regions = S.elyes_regions(state.get("elyes_regions2", {}))
+        state["_new_elyes_regions2"] = regions
         el = S.fetch_elyes(regions)
         if not el:
             raise ValueError("글 목록 0건")
         board("엘리스", "elyes_seen", el, lambda x: {
             "board_id": f"elyes:{x['id']}", "source": "elyes", "title": f"롯데 엘리스 — {x['title']}"
                                         + (" (지역 미확인)" if x["region"] == "미확인" else ""),
-            "name": x["title"][:40], "kicker": "롯데 엘리스 모집공고", "addr": "",
+            "name": x["title"][:40], "raw_title": x["title"], "kicker": "롯데 엘리스 모집공고", "addr": "",
             "deadline": "", "dday": "", "urgent": False, "is_recruit": True, "types": [],
             "url": x["url"], "site": "", "pdf": None})
     except Exception as e:
         errors.append(f"롯데 엘리스 확인 실패: {type(e).__name__}")
 
+    # (F) 마이홈 공공데이터 API — 서울+근교 7곳 공공임대 모집공고. 면적 정보 없음(📐 표시)
+    if os.environ.get("MYHOME_API_KEY", "").strip():
+        try:
+            mh = MH.fetch_notices(today)
+            board("마이홈", "myhome_seen", [{**x, "mine": S.mine(x["title"])} for x in mh], lambda x: {
+                "board_id": f"myhome:{x['id']}", "source": "myhome", "title": f"마이홈 — {x['title']}",
+                "name": x["title"][:40], "raw_title": x["title"], "kicker": f"{x['insttNm']} {x['suplyTyNm']}",
+                "addr": x["region"], "deadline": x["deadline"] or "공고문 확인", "days_left": x["days_left"],
+                "dday": ("D-DAY" if x["days_left"] == 0 else f"D-{x['days_left']}") if x["days_left"] is not None else "",
+                "urgent": x["days_left"] is not None and 0 <= x["days_left"] <= URGENT_DAYS,
+                "is_recruit": True, "types": x["types"], "types_complete": True,
+                "url": x["url"], "apply_url": x["url"], "site": "", "pdf": None})
+        except Exception as e:
+            errors.append(f"마이홈 API 확인 실패: {MH.redact(str(e))[:60]}")
+    else:
+        print("myhome: MYHOME_API_KEY 없음 — 건너뜀")
+
+    news = dedupe(news, state)
     news.sort(key=priority)
     return news, errors, open_now
+
+
+def tnorm(t: str) -> str:
+    """제목 비교용: 한글·영문·숫자만, '공고문'→'공고'."""
+    return re.sub(r"[^0-9A-Za-z가-힣]", "", (t or "").replace("공고문", "공고"))
+
+
+def dedupe(news: list[dict], state: dict) -> list[dict]:
+    """마이홈 공고가 다른 출처(청년안심·SH·엘리스 등)와 같은 공고면 마이홈 쪽을 빼서 한 번만 알린다.
+    다른 출처 공고는 빼지 않는다(청년안심주택 '추가모집공고'는 같은 제목으로 매달 새로 올라온다).
+    이전 실행에서 다른 출처로 이미 알린 제목(alerted_titles)과 같아도 마이홈 쪽을 뺀다."""
+    before = state.get("alerted_titles", [])
+    others = [tnorm(n.get("raw_title") or n.get("title")) for n in news if n.get("source") != "myhome"]
+    others = [k for k in others if len(k) >= 10]
+
+    def same(k, o):
+        return k == o or (len(k) >= 15 and len(o) >= 15 and (k in o or o in k))
+
+    keep = []
+    for n in news:
+        if n.get("source") == "myhome":
+            k = tnorm(n.get("raw_title") or n.get("title"))
+            if len(k) >= 10 and any(same(k, o) for o in others + before):
+                print(f"skip(다른 출처와 중복): 마이홈 — {(n.get('raw_title') or n['title'])[:50]}")
+                continue
+        keep.append(n)
+    state["_new_alerted_titles"] = (others + [o for o in before if o not in others])[:500]
+    return keep
 
 
 def refresh_tracking(state: dict, open_now: list[dict], today: dt.date) -> list[dict]:
@@ -447,15 +496,32 @@ def slack_test() -> int:
     plan = [("normal", "일반", today + dt.timedelta(days=10)),
             ("soon", "마감 임박 D-1", today + dt.timedelta(days=1)),
             ("area", "면적 확인 필요", today + dt.timedelta(days=10))]
+    samples = [(label, slack_item(_with_deadline(picks[k], d), today, fetch_pdf=False), picks[k].get("board_id"))
+               for k, label, d in plan]
+    # 4) 마이홈 API 공고(실제 값 그대로, 면적 없음 → 📐) — 키가 있을 때만
+    if os.environ.get("MYHOME_API_KEY", "").strip():
+        try:
+            mh = [x for x in MH.fetch_notices(today) if S.mine(x["title"])]
+            if mh:
+                x = mh[0]
+                n = {"title": x["title"], "name": x["title"][:40], "deadline": x["deadline"],
+                     "days_left": x["days_left"], "dday": f"D-{x['days_left']}" if x["days_left"] else "D-DAY",
+                     "types": x["types"], "types_complete": True, "url": x["url"], "apply_url": x["url"], "pdf": None}
+                samples.append(("마이홈 API", slack_item(n, today, fetch_pdf=False), f"myhome:{x['id']}"))
+            else:
+                print("slack test: 마이홈 견본으로 쓸 범위 안 모집공고 없음")
+        except Exception as e:
+            print(f"slack test: 마이홈 견본 읽기 실패 ({MH.redact(str(e))[:60]})")
     all_ok = True
-    for i, (k, label, d) in enumerate(plan, 1):
-        c = slack_item(_with_deadline(picks[k], d), today, fetch_pdf=False)
-        c["top"] = f"[견본 {i}/3] " + c["top"]
-        c["note"] += " · 🧪 시험(마감일은 견본용 가상값, 상태 파일 변경 없음)"
+    total = len(samples)
+    for i, (label, c, bid) in enumerate(samples, 1):
+        c["top"] = f"[견본 {i}/{total}] " + c["top"]
+        c["note"] += (" · 🧪 시험(실제 값, 상태 파일 변경 없음)" if label == "마이홈 API"
+                      else " · 🧪 시험(마감일은 견본용 가상값, 상태 파일 변경 없음)")
         ok = slk.send_notice(c)
         all_ok = all_ok and ok
-        print(f"slack test: 견본 {i}/3 {label} — {'ok' if ok else 'fail'} "
-              f"(board_id {picks[k].get('board_id')}, 표 {len(c['rows'] or [])}행, 형식 {slk.table_mode or 'text'})")
+        print(f"slack test: 견본 {i}/{total} {label} — {'ok' if ok else 'fail'} "
+              f"(board_id {bid}, 표 {len(c['rows'] or [])}행, 형식 {slk.table_mode or 'text'})")
     print(f"slack test: {'ok' if all_ok else 'fail'} · 표 형식 {slk.table_mode or '없음'}")
     return 0 if all_ok else 1
 

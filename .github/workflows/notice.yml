@@ -89,6 +89,7 @@ jobs:
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           GH_PAT: ${{ secrets.GH_PAT }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          MYHOME_API_KEY: ${{ secrets.MYHOME_API_KEY }}
           SLACK_TEST: ${{ inputs.slack_test }}
           DRY_RUN: ${{ inputs.dry_run }}
           CARD_LIMIT: "3"

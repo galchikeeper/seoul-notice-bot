@@ -199,7 +199,9 @@ def fetch_types(pdf_url: str, timeout: int = 90, with_status: bool = False):
     return (rows, not why) if with_status else rows
 
 
-def fmt_num(v: float) -> str:
+def fmt_num(v) -> str:
+    if v is None:
+        return "확인 실패"                    # 못 읽은 금액은 채우지 않는다
     return f"{int(v):,}" if float(v).is_integer() else f"{v:,.2f}".rstrip("0").rstrip(".")
 
 
