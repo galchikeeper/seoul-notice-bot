@@ -32,13 +32,13 @@ def _strip(html: str) -> str:
     return BeautifulSoup(html or "", "html.parser").get_text("\n", strip=True)
 
 
-def _get_retry(url: str, tries: int = 3, wait: float = 2.0):
+def _get_retry(url: str, tries: int = 3, wait: float = 2.0, timeout: float = TIMEOUT):
     """spacereits/hillstate 는 연결이 산발적으로 끊긴다. 몇 번 다시 시도한다."""
     import time
     last = None
     for i in range(tries):
         try:
-            r = requests.get(url, headers=UA, timeout=TIMEOUT)
+            r = requests.get(url, headers=UA, timeout=timeout)
             r.raise_for_status()
             return r
         except Exception as e:
@@ -314,11 +314,15 @@ def fetch_hillstate() -> dict:
     return {"count": count, "rows": rows, "url": HILLSTATE}
 
 
+SPACEREITS_TIMEOUT = 10   # 정상이면 1초 안에 온다. GitHub 실행 중 응답이 아예 없는 날이 있어 짧게 끊는다
+
+
 def fetch_spacereits(slug: str) -> dict:
-    """공지 목록의 최신 글 제목·날짜를 돌려준다. www 없는 주소는 리다이렉트가 불안정하다."""
+    """공지 목록의 최신 글 제목·날짜를 돌려준다. www 없는 주소는 리다이렉트가 불안정하다.
+    실패하면 error=True 와 함께 오류 종류(why)·접속 자체가 안 됐는지(unreachable)를 돌려준다."""
     url = f"https://www.spacereits.co.kr/{slug}/notice"
     try:
-        r = _get_retry(url)
+        r = _get_retry(url, timeout=SPACEREITS_TIMEOUT)
         r.encoding = r.apparent_encoding
         soup = BeautifulSoup(r.text, "html.parser")
         rows = [tr.get_text(" ", strip=True) for tr in soup.select("tr")]
@@ -329,9 +333,11 @@ def fetch_spacereits(slug: str) -> dict:
         title, date = _row_key(rows[0])
         return {"title": title, "date": date, "key": f"{date}|{title}",
                 "is_recruit": is_recruit(title), "count": len(rows), "url": url}
-    except Exception:
+    except Exception as e:
+        unreachable = isinstance(e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError))
         return {"title": "", "date": "", "key": "", "is_recruit": False,
-                "count": -1, "url": url, "error": True}
+                "count": -1, "url": url, "error": True, "why": type(e).__name__,
+                "unreachable": unreachable}
 
 
 # ─────────────────────────── SH 주택임대 공고 ───────────────────────────

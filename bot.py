@@ -161,10 +161,17 @@ def collect(state: dict, today: dt.date):
         errors.append(f"힐스테이트 뉴포레 확인 실패: {e}")
 
     # (C) 공간지원리츠 — 제목+작성일이 바뀌고, 그게 모집공고일 때만 알림
-    for sl, name in S.SPACEREITS.items():
+    for i, (sl, name) in enumerate(S.SPACEREITS.items()):
         r = S.fetch_spacereits(sl)
         if r.get("error"):
-            errors.append(f"{name} 확인 실패")
+            print(f"공간지원리츠: {name} 실패 — {r.get('why')}")
+            if r.get("unreachable"):
+                # 다섯 단지가 한 서버라, 접속이 안 되면 나머지도 안 된다 — 기다리지 않고 건너뛴다
+                rest = len(S.SPACEREITS) - i - 1
+                print(f"공간지원리츠: 접속 안 됨 — 나머지 {rest}곳 건너뜀(상태는 그대로, 다음 실행에서 다시 확인)")
+                errors.append(f"공간지원리츠 접속 안 됨({r.get('why')})")
+                break
+            errors.append(f"{name} 확인 실패({r.get('why')})")
             continue
         prev = state["spacereits"].get(sl, "")
         changed = bool(r["key"]) and r["key"] != prev
