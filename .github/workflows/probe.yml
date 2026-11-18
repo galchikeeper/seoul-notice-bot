@@ -25,3 +25,28 @@ jobs:
         run: playwright install --with-deps chromium
       - name: 사이트 점검
         run: python probe.py --chromium
+
+  # 마이홈 공공데이터 API(data.go.kr 15108420) — 키는 Secret MYHOME_API_KEY, 출력하지 않는다.
+  # 발급 직후 '등록되지 않은 키'면 실패로 끝내지 않고 30분 간격으로 최대 4번 다시 부른다.
+  myhome-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 의존성 설치
+        run: pip install requests
+      - name: 마이홈 API 1회 호출 (미등록 키면 30분 간격 최대 4회 재시도)
+        env:
+          MYHOME_API_KEY: ${{ secrets.MYHOME_API_KEY }}
+        run: |
+          for i in 0 1 2 3 4; do
+            if [ "$i" -gt 0 ]; then echo "myhome: 등록되지 않은 키 — 30분 뒤 다시 시도 ($i/4)"; sleep 1800; fi
+            set +e; python myhome_probe.py; rc=$?; set -e
+            if [ "$rc" -ne 3 ]; then exit $rc; fi
+          done
+          echo "::error::4번 다시 시도해도 등록되지 않은 키"; exit 3
+
