@@ -35,7 +35,8 @@ class SpacereitsTest(unittest.TestCase):
             raise requests.exceptions.ConnectTimeout("x")
         state = bot.load_state()
         with mock.patch.object(requests, "get", boom), mock.patch.object(requests, "post", boom), \
-             mock.patch("time.sleep"), mock.patch.dict(os.environ, {"MYHOME_API_KEY": ""}):
+             mock.patch("time.sleep"), mock.patch.dict(os.environ, {"MYHOME_API_KEY": ""}), \
+             mock.patch.object(bot, "SPACEREITS_ENABLED", True):
             out = bot.collect(state, dt.date(2026, 11, 19))
         errors = out[1]
         space = [u for u in urls if "spacereits" in u]
@@ -43,6 +44,24 @@ class SpacereitsTest(unittest.TestCase):
         self.assertTrue(all("/seongdong/" in u for u in space))
         self.assertIn("공간지원리츠 접속 안 됨(ConnectTimeout)", errors)
         self.assertFalse(any("스페이스 확인 실패" in e for e in errors))
+
+    def test_collect_skips_spacereits_by_default(self):
+        """2026-11-19부터 기본은 꺼짐(맥북 housing-local 이 확인): 접속도, 오류 문구도 없어야 한다."""
+        import datetime as dt, os, bot
+        urls = []
+        def boom(url, *a, **kw):
+            urls.append(url)
+            raise requests.exceptions.ConnectTimeout("x")
+        self.assertFalse(bot.SPACEREITS_ENABLED)
+        state = bot.load_state()
+        before = dict(state["spacereits"])
+        with mock.patch.object(requests, "get", boom), mock.patch.object(requests, "post", boom), \
+             mock.patch("time.sleep"), mock.patch.dict(os.environ, {"MYHOME_API_KEY": ""}):
+            news, errors, _ = bot.collect(state, dt.date(2026, 11, 19))
+        self.assertFalse([u for u in urls if "spacereits" in u])
+        self.assertFalse([e for e in errors if "공간지원리츠" in e or "스페이스" in e])
+        self.assertNotIn("_space_new", state)
+        self.assertEqual(state["spacereits"], before)
 
 if __name__ == "__main__":
     unittest.main()

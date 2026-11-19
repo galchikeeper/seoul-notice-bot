@@ -30,6 +30,7 @@ BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
 CDN = "https://cdn.jsdelivr.net/gh/{repo}@{branch}/cards/{name}"
 
 URGENT_DAYS = int(os.environ.get("URGENT_DAYS", "3"))  # 마감 N일 이내면 마감임박
+SPACEREITS_ENABLED = os.environ.get("SPACEREITS_ENABLED", "0") == "1"  # 공간지원리츠는 맥북에서 확인(해외 IP 차단)
 
 DEFAULT_STATE = {
     "soco_last_board_id": 6645,
@@ -161,7 +162,10 @@ def collect(state: dict, today: dt.date):
         errors.append(f"힐스테이트 뉴포레 확인 실패: {e}")
 
     # (C) 공간지원리츠 — 제목+작성일이 바뀌고, 그게 모집공고일 때만 알림
-    for i, (sl, name) in enumerate(S.SPACEREITS.items()):
+    # 2026-11-19부터 꺼 둠: spacereits.co.kr 이 GitHub Actions(해외) IP 를 접속 단계에서 끊는다.
+    # 맥북 galchi-automations/housing-local/spacereits.py 가 평일 08:10 에 대신 확인한다.
+    # 되살리려면 워크플로 env SPACEREITS_ENABLED: "1".
+    for i, (sl, name) in enumerate(S.SPACEREITS.items() if SPACEREITS_ENABLED else []):
         r = S.fetch_spacereits(sl)
         if r.get("error"):
             print(f"공간지원리츠: {name} 실패 — {r.get('why')}")
