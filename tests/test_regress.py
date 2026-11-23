@@ -75,6 +75,13 @@ def test_gate_marks_broken_card():
     assert heads == ["링크", "파일", "임대조건", "자격", "마감"], probs
 
 
+def test_gate_skip_card_is_not_rent_failure():
+    """30㎡ 미만 타입만 있어 보내지 않는 카드(엘리스 염창)는 '임대조건' 실패로 세지 않는다."""
+    res = {"page_problem": "", "files": [{"name": "a.jpg", "kind": "jpg", "data": b"x", "how": "", "chars": 0}], "text": ""}
+    card = {"top": "x · 마감 11/22", "rows": None, "skip": True, "elig_items": [("a", "b")], "notice_url": ""}
+    assert G.check(card, res, [{"url": "u"}]) == []
+
+
 def test_slack_shows_gate_lines():
     import slack as SL
     c = {"top": "t", "flags": [], "rows": None, "fallback_text": "임대조건: 공고문 확인", "note": "n",

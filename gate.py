@@ -42,7 +42,9 @@ def check(card: dict, res: dict, archived: list[dict]) -> list[str]:
         out.append("파일 — " + "; ".join(f"{f['name'][:20]}: {f['how']}" for f in files[:2]))
     elif not archived:
         out.append("파일 — 받았지만 사본 보관(업로드) 실패")
-    if not card.get("rows"):
+    if card.get("skip"):
+        pass                                   # 전용 30㎡ 미만 타입만 있는 공고 — 원래 보내지 않는 카드(임대조건은 읽었음)
+    elif not card.get("rows"):
         why = _why_text(res)
         out.append(f"임대조건 — 공고문에서 금액 표·줄을 찾지 못함{why}")
     if not card.get("elig_items"):

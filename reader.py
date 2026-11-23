@@ -288,7 +288,9 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
             res["page_problem"] = page_problem(r, n.get("raw_title") or n.get("title", ""))
             html = r.text if "html" in r.headers.get("content-type", "") else ""
         except Exception as e:
-            res["page_problem"] = f"열리지 않음({type(e).__name__})"
+            blocked = _host(url) in DEAD_HOSTS
+            res["page_problem"] = (f"봇 실행 서버(GitHub·해외)에서 접속 안 됨({type(e).__name__}) — 휴대폰에서는 열릴 수 있음"
+                                   if blocked else f"열리지 않음({type(e).__name__})")
     texts = []
     for a in attachments(n, html, url)[:max_files]:
         f = {"name": a["name"], "url": a["url"], "kind": "", "size": 0, "how": "", "chars": 0, "data": b""}

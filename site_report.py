@@ -93,7 +93,7 @@ def main() -> int:
         kinds = ", ".join(sorted({f["kind"].upper() for f in files if f.get("kind")})) or "없음"
         link = "✅" if not res.get("page_problem") else f"❌ {res['page_problem'][:40]}"
         cond = []
-        cond.append("임대조건 " + ("✅" if card.get("rows") else "❌"))
+        cond.append("임대조건 " + ("✅" if card.get("rows") else "제외(전용 30㎡ 미만만 — 발송 안 함)" if card.get("skip") else "❌"))
         cond.append("자격 " + ("✅" if card.get("elig_items") else "❌"))
         cond.append("마감 " + ("❌" if ("공고문 확인" in card["top"] or "확인 필요" in card["top"]) else "✅"))
         real = [p for p in probs if not p.startswith("파일 — 받았지만")]      # 이 점검은 사본 보관을 하지 않음
