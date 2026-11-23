@@ -2,8 +2,11 @@ name: 서울 임대주택 공고 알림
 
 on:
   schedule:
-    # 평일 07:47 KST = 22:47 UTC (일~목). 정시(:00) 예약은 GitHub 대기열에서 몇 시간씩 밀려 비켜 잡는다
-    - cron: "47 22 * * 0-4"
+    # 매일 07:47 KST = 22:47 UTC. 정시(:00) 예약은 GitHub 대기열에서 몇 시간씩 밀려 비켜 잡는다.
+    # 주말도 돈다(2026-11-23): 엘리스 공실 공고가 금요일 오후에 올라와 일요일 18시에 마감돼, 평일만 돌면 월요일엔 이미 마감.
+    - cron: "47 22 * * *"
+    # 금요일 18:17 KST = 09:17 UTC 추가 실행 — 금요일 오후 공고를 그날 저녁에 받는다(새 공고만 보냄, RUN_KIND=extra)
+    - cron: "17 9 * * 5"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -16,6 +19,10 @@ on:
         default: ""
       slack_test:
         description: "슬랙 시험 — 1이면 슬랙에 시험 메시지 1건만 보냄 (상태 파일·카톡 안 건드림)"
+        required: false
+        default: "0"
+      elyes_preview:
+        description: "엘리스 미리보기 — 1이면 최근 4일 엘리스 글의 카드를 로그에만 찍음 (발송·상태 변경 없음)"
         required: false
         default: "0"
 
@@ -42,7 +49,7 @@ jobs:
       # 슬랙이 유일한 알림 수단이므로 웹훅이 비어 있으면 조용히 넘어가지 않고 여기서 실패로 멈춘다.
       # (실패하면 뒤의 결과 커밋도 돌지 않아 '커밋 = 발송 성공' 구조가 유지된다)
       - name: 슬랙 웹훅 점검
-        if: inputs.dry_run != '1'
+        if: inputs.dry_run != '1' && inputs.elyes_preview != '1'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -59,6 +66,17 @@ jobs:
 
       - name: 의존성 설치
         run: pip install -r requirements.txt
+
+      # 엘리스 공고문은 이미지라 글자 인식(tesseract 한국어)이 필요하다.
+      # 설치가 실패하거나 늦어져도 알림은 보낸다(그 경우 카드에 '공고문 확인'만 나옴).
+      - name: 글자 인식(OCR) 설치
+        if: inputs.slack_test != '1'
+        continue-on-error: true
+        timeout-minutes: 4
+        run: |
+          sudo apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-kor \
+            || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-kor)
+          tesseract --list-langs
 
       - name: 카드 이미지용 브라우저 설치 (카톡 켰을 때만)
         if: env.KAKAO_ENABLED == '1' && inputs.slack_test != '1'
@@ -92,11 +110,13 @@ jobs:
           MYHOME_API_KEY: ${{ secrets.MYHOME_API_KEY }}
           SLACK_TEST: ${{ inputs.slack_test }}
           DRY_RUN: ${{ inputs.dry_run }}
+          RUN_KIND: ${{ github.event.schedule == '17 9 * * 5' && 'extra' || 'main' }}
+          ELYES_PREVIEW: ${{ inputs.elyes_preview }}
           CARD_LIMIT: "3"
         run: python bot.py
 
       - name: 결과 커밋
-        if: inputs.slack_test != '1' && inputs.dry_run != '1'
+        if: inputs.slack_test != '1' && inputs.dry_run != '1' && inputs.elyes_preview != '1'
         run: |
           git config user.name  "notice-bot"
           git config user.email "notice-bot@users.noreply.github.com"
@@ -105,7 +125,7 @@ jobs:
           git push   # 실패를 숨기지 않는다(발송은 됐는데 커밋이 안 올라간 상황을 실패로 드러냄)
 
       - name: 오래된 카드 정리 (60일)
-        if: inputs.slack_test != '1' && inputs.dry_run != '1'
+        if: inputs.slack_test != '1' && inputs.dry_run != '1' && inputs.elyes_preview != '1'
         run: |
           find cards -name '*.png' -mtime +60 -delete || true
           git add cards/ || true

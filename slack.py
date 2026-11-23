@@ -111,6 +111,8 @@ TABLE_COLS = os.environ.get("SLACK_TABLE_COLS", "full")      # full | compact(�
 
 
 def _rows_for(c: dict) -> tuple[list[str], list[list[str]]]:
+    if c.get("head"):                       # 출처마다 다른 열(예: 엘리스 — 타입·보증금·월세·층·향·용도)
+        return c["head"], c["rows"]
     if TABLE_COLS == "compact":
         return HEAD_COMPACT, [[f"{r[0]}({r[2]})" if r[2] else r[0], r[1], r[3], r[4], r[5]] for r in c["rows"]]
     return HEAD_FULL, c["rows"]
@@ -126,7 +128,7 @@ def _num_cell(t: str) -> dict:
 
 def table_block(c: dict, mode: str) -> dict:
     head, rows = _rows_for(c)
-    money = {len(head) - 2, len(head) - 1}
+    money = set(c["money_cols"]) if c.get("head") and c.get("money_cols") else {len(head) - 2, len(head) - 1}
     if mode == "data_table":
         cells = [[{"type": "raw_text", "text": h} for h in head]]
         cells += [[_num_cell(x) if i in money else {"type": "raw_text", "text": x or "확인 실패"}
@@ -136,8 +138,8 @@ def table_block(c: dict, mode: str) -> dict:
     cells = [[{"type": "raw_text", "text": h} for h in head]]
     cells += [[{"type": "raw_text", "text": x or "확인 실패"} for x in r] for r in rows]
     return {"type": "table", "rows": cells,
-            "column_settings": [{"is_wrapped": True}] + [None] * (len(head) - 3)
-                               + [{"align": "right"}, {"align": "right"}]}
+            "column_settings": [{"is_wrapped": True}] + [{"align": "right"} if i in money else None
+                                                          for i in range(1, len(head))]}
 
 
 def notice_blocks(c: dict, mode: str) -> list[dict]:

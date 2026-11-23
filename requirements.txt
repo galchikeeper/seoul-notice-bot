@@ -5,3 +5,4 @@ qrcode>=7.4
 pillow>=10.0
 playwright>=1.44
 pynacl>=1.5
+numpy>=1.26

@@ -434,6 +434,7 @@ def elyes_region_of(title: str, regions: dict) -> str:
 
 def fetch_elyes(regions: dict) -> list[dict]:
     import html as _html
+    from urllib.parse import urljoin
     r = requests.post(f"{ELYES}/post/data/recruit/list", headers=ELYES_FORM_H, timeout=TIMEOUT,
                       data="searchSelect=title&searchKeyword=&i_iNowPageNo=1&i_iPageSize=60")   # 며칠 밀려도 놓치지 않게 넉넉히
     r.raise_for_status()
@@ -443,7 +444,61 @@ def fetch_elyes(regions: dict) -> list[dict]:
         if not title:
             continue
         reg = elyes_region_of(title, regions)
+        body = _html.unescape(x.get("nt_content") or "")
+        imgs = [urljoin(ELYES + "/", u) for u in re.findall(r'<img[^>]+src="([^"]+)"', body)]
         out.append({"id": x.get("nt_idx"), "title": title, "date": x.get("row_input_date") or "",
-                    "region": reg, "url": f"{ELYES}/post/recruit",
+                    "region": reg, "url": elyes_detail_url(x.get("nt_idx") or "", x.get("nt_code") or "BHCT"),
+                    "images": imgs[:6], "text": _strip(body)[:500],
                     "mine": mine(title) and reg not in ("범위 밖", "서울 밖")})
     return out
+
+
+def elyes_detail_url(nt_idx: str, code: str = "BHCT") -> str:
+    """사이트 목록 스크립트(recruit.js)가 만드는 상세 주소와 같은 형식."""
+    from urllib.parse import quote
+    return f"{ELYES}/post/recruit/detail?i_sNtCode={quote(code)}&nt_idx={quote(nt_idx, safe='')}"
+
+
+def elyes_images(urls: list[str]) -> list[bytes]:
+    out = []
+    for u in urls:
+        try:
+            r = requests.get(u, headers=UA, timeout=TIMEOUT)
+            r.raise_for_status()
+            if r.headers.get("Content-Type", "").startswith("image") and len(r.content) < 8_000_000:
+                out.append(r.content)
+        except Exception as e:
+            print(f"elyes: 공고문 이미지 받기 실패 ({type(e).__name__})")
+    return out
+
+
+_T_DATE = re.compile(r"(?:(\d{2,4})\.\s*)?(\d{1,2})\s*[./]\s*(\d{1,2})")
+
+
+def elyes_title_deadline(title: str, posted: str = "") -> tuple[dt.date, int | None] | None:
+    """제목의 접수 기간에서 마감 (날짜, 시각 또는 None).  '공고일' 은 마감이 아니므로 보지 않는다.
+    '(접수기간: 11/20~11/22)' · '(접수기간: 26.11.11~26.11.15)' · "(접수: '26.11.13(금) 10~15시)" · "(접수일 '26.11.17)" """
+    t = re.sub(r"[(（]\s*[월화수목금토일]\s*[)）]", "", title or "")      # '(금)' 요일 괄호를 먼저 걷어낸다
+    m = re.search(r"접수[^)\]]*", t)
+    if not m:
+        return None
+    seg = m.group(0).replace("'", "").replace("‘", "").replace("’", "")
+    dates = list(_T_DATE.finditer(seg))
+    if not dates:
+        return None
+    pm = re.match(r"(\d{4})\.(\d{1,2})", posted or "")
+    py, pmon = (int(pm.group(1)), int(pm.group(2))) if pm else (dt.date.today().year, dt.date.today().month)
+    last = dates[-1]
+    y = int(last.group(1)) if last.group(1) else None
+    mo, d = int(last.group(2)), int(last.group(3))
+    if y is None:
+        y = py + (1 if mo < pmon - 6 else 0)
+    elif y < 100:
+        y += 2000
+    try:
+        day = dt.date(y, mo, d)
+    except ValueError:
+        return None
+    hm = re.findall(r"(\d{1,2})\s*시", seg[last.end():])
+    hour = int(hm[-1]) if hm and 0 <= int(hm[-1]) <= 24 else None
+    return day, hour

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """서울 공공지원민간임대·청년안심주택 신규 공고 → 슬랙 알림 (카카오톡은 KAKAO_ENABLED 로 켜고 끔).
 
-GitHub Actions 에서 평일 07:47 KST 에 실행된다.
+GitHub Actions 에서 매일 07:47 KST + 금요일 18:17 KST(추가 실행)에 예약된다(실제 시작은 GitHub 대기열로 몇 시간 늦을 수 있음).
   1) state.json 의 마지막 확인 지점을 읽고
   2) 소스 4곳에서 신규 공고를 찾고
   3) 상위 N건은 공고문 PDF까지 열어 카드 이미지를 만들고
@@ -14,6 +14,7 @@ from pathlib import Path
 
 import sources as S
 import myhome as MH
+import elyes_ocr as OCR
 from pdfparse import fetch_types, type_lines, fmt_num
 from card import render
 from kakao import Kakao, update_github_secret
@@ -31,6 +32,9 @@ CDN = "https://cdn.jsdelivr.net/gh/{repo}@{branch}/cards/{name}"
 
 URGENT_DAYS = int(os.environ.get("URGENT_DAYS", "3"))  # 마감 N일 이내면 마감임박
 SPACEREITS_ENABLED = os.environ.get("SPACEREITS_ENABLED", "0") == "1"  # 공간지원리츠는 맥북에서 확인(해외 IP 차단)
+# 추가 실행(금요일 저녁): 새 공고만 보낸다 — 마감임박 재알림·'신규 없음' 줄은 아침 실행에서만
+QUIET = os.environ.get("RUN_KIND", "") == "extra"
+WD = "월화수목금토일"
 
 DEFAULT_STATE = {
     "soco_last_board_id": 6645,
@@ -233,7 +237,11 @@ def collect(state: dict, today: dt.date):
                                         + (" (지역 미확인)" if x["region"] == "미확인" else ""),
             "name": x["title"][:40], "raw_title": x["title"], "kicker": "롯데 엘리스 모집공고", "addr": "",
             "deadline": "", "dday": "", "urgent": False, "is_recruit": True, "types": [],
-            "url": x["url"], "site": "", "pdf": None})
+            "url": x["url"], "site": "", "pdf": None, "images": x.get("images", []), "posted": x.get("date", "")})
+        now = dt.datetime.now(KST).replace(tzinfo=None)
+        if now.date() != today:                       # 시험에서 today 를 바꾼 경우
+            now = dt.datetime.combine(today, dt.time(12, 0))
+        news[:] = [e for e in (elyes_enrich(n, now) if n.get("source") == "elyes" else n for n in news) if e]
     except Exception as e:
         errors.append(f"롯데 엘리스 확인 실패: {type(e).__name__}")
 
@@ -419,9 +427,115 @@ def _area_val(t: dict) -> float | None:
         return None
 
 
+# ─────────────────────────── 롯데 엘리스 ───────────────────────────
+
+def _md(d: dt.datetime, with_time: bool = True) -> str:
+    s = f"{d.month}/{d.day}({WD[d.weekday()]})"
+    return s + (f" {d:%H:%M}" if with_time and d.time() not in (dt.time(0, 0), dt.time(23, 59)) else "")
+
+
+def elyes_enrich(n: dict, now: dt.datetime, images: list[bytes] | None = None) -> dict | None:
+    """엘리스 공고 1건: 공고문 이미지를 읽어 임대조건·일정을 채운다. 신청 마감이 지났으면 None(보내지 않음).
+    마감은 공고문 표 → 제목 '(접수기간: …)' 순으로 찾고, 둘 다 없으면 '마감일 확인 필요'로 보낸다."""
+    title = n.get("raw_title") or n.get("title", "")
+    td = S.elyes_title_deadline(title, n.get("posted", ""))
+    if images is None:
+        images = S.elyes_images(n.get("images") or [])
+    r = OCR.read_images(images) if images else {"rows": [], "apply": (None, None), "winner": None,
+                                                 "contract": (None, None), "errors": ["공고문 이미지 없음"]}
+    for e in r["errors"]:
+        print(f"elyes: {title[:30]} — {e}")
+    end = r["apply"][1]
+    if end and td and end.date() != td[0]:
+        print(f"elyes: 제목 마감 {td[0]} 와 공고문 {end:%Y-%m-%d} 가 달라 제목 날짜를 씀 — {title[:40]}")
+        end = None
+    if end is None and td:
+        hh = td[1] if td[1] is not None and td[1] < 24 else None
+        end = dt.datetime.combine(td[0], dt.time(hh, 0) if hh is not None else dt.time(23, 59))
+    if end and end < now:
+        print(f"skip(마감됨): 엘리스 — {title[:50]} — 마감 {end:%m/%d %H:%M}")
+        return None
+    rows = r["rows"] if r["rows"] and all(OCR.plausible(x) for x in r["rows"]) else []
+    m = dict(n)
+    m["ely_rows"] = rows
+    m["ely_sched"] = {"apply": r["apply"] if r["apply"][1] else (None, end), "winner": r["winner"],
+                      "contract": r["contract"]}
+    if end:
+        left = (end.date() - now.date()).days
+        m.update(deadline=_md(end), days_left=left, dday="D-DAY" if left == 0 else f"D-{left}",
+                 urgent=0 <= left <= URGENT_DAYS)
+    else:
+        m.update(deadline="", days_left=None, dday="", urgent=False)
+    return m
+
+
+def _man(won: int) -> str:
+    """원 → 만원 문자열: 10000000 → '1,000' · 628000 → '62.8'."""
+    return f"{won / 10000:,.1f}".rstrip("0").rstrip(".")
+
+
+def _ely_sched_text(sc: dict) -> str:
+    a0, a1 = sc.get("apply") or (None, None)
+    c0, c1 = sc.get("contract") or (None, None)
+    parts = []
+    if a1:
+        parts.append("신청 " + (f"{_md(a0)}~" if a0 else "") + (
+            f"{a1:%H:%M}" if a0 and a0.date() == a1.date() else _md(a1)))
+    if sc.get("winner"):
+        parts.append(f"발표 {_md(sc['winner'])}")
+    if c1:
+        parts.append("계약 " + (f"{_md(c0, False)}~" if c0 else "") + _md(c1, False))
+    return " · ".join(parts)
+
+
+def elyes_slack_item(n: dict) -> dict:
+    """엘리스 공고 카드. 표: 타입 · 보증금 · 월세 (+ 공고문에 있는 층·향·용도·세대수). 못 읽은 값은 '공고문 확인'."""
+    raw = n.get("raw_title") or n.get("name") or ""
+    name = re.sub(r"\s*[(（][^)）]*[)）][^\]]*$", "", raw)            # 끝의 '(접수기간: …)' · '(공고일: …)' 떼기
+    name = re.sub(r"\s+", " ", re.sub(r"\[([^\]]+)\]", r"\1 ", name)).strip()[:40] or "엘리스 공고"
+    left, dd = n.get("days_left"), n.get("dday", "")
+    urgent = left is not None and 0 <= left <= URGENT_DAYS
+    top = (f"⚠️ {dd} · " if urgent and dd else "") + f"{name} · 마감 {n.get('deadline') or '확인 필요'}"
+    flags = [] if n.get("deadline") else ["⏰ 마감일 확인 필요"]
+    allr = n.get("ely_rows") or []
+    # 전용면적이 적힌 공고(예: 어바니엘 염창)는 다른 출처와 같은 기준으로 MIN_AREA㎡ 미만 타입을 뺀다
+    src = [r for r in allr if not r.get("area") or float(r["area"]) >= MIN_AREA]
+    skip = bool(allr) and not src
+    dropped = len(allr) - len(src)
+    if not src or any(not r.get("area") for r in src):
+        flags.append("📐 면적 확인 필요")
+    sched = _ely_sched_text(n.get("ely_sched") or {})
+    if src:
+        opt = [(k, h) for k, h in (("area", "전용㎡"), ("floor", "층"), ("dir", "향"), ("use", "용도"), ("units", "세대수"))
+               if any(r.get(k) for r in src)]
+        head = ["타입", "보증금(만원)", "월세(만원)"] + [h for _, h in opt]
+        rows = [[r["type"] or "확인 실패", _man(r["deposit"]), _man(r["rent"])] + [r.get(k) or "-" for k, _ in opt]
+                for r in src]
+        fallback = "\n".join(" · ".join(x for x in [
+            r["type"] or "타입 확인 실패", f"보증금 {_man(r['deposit'])}만", f"월 {_man(r['rent'])}만",
+            " ".join(x for x in (r.get("floor"), r.get("dir"), r.get("use")) if x)] if x) for r in src)
+    else:
+        head, rows, fallback = None, None, "타입·보증금·월세: 공고문 확인"
+    if sched:
+        fallback += "\n" + sched
+    notes = sorted({r["note"] for r in src if r.get("note")})
+    note = " · ".join(x for x in [
+        "단위: 만원" if rows else "", sched or "신청 일정: 공고문 확인",
+        ("비고 " + ", ".join(notes)) if notes else "",
+        f"전용 {MIN_AREA:g}㎡ 미만 {dropped}개 타입 제외" if dropped and not skip else "",
+        "자격·입주조건 공고문 확인"] if x)
+    return {"top": top, "flags": flags, "rows": rows, "head": head, "money_cols": [1, 2],
+            "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
+            "urgent": urgent, "skip": skip, "dropped_types": dropped,
+            "notice_url": n["url"], "apply_url": "",
+            "title": top, "summary": fallback, "meta": note}
+
+
 def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     """공고 1건 → 슬랙 메시지 1개에 들어갈 값. 모르는 값은 지어내지 않고 '확인 실패'·'공고문 확인'.
     전용 MIN_AREA㎡ 미만 타입은 표에서 빼고, 모든 타입이 미만이면 skip=True(보내지 않음)."""
+    if n.get("source") == "elyes" and "ely_rows" in n:
+        return elyes_slack_item(n)
     title = n.get("title", "")
     name = n.get("name") or clean_name(title) or "공고"
     left = n.get("days_left")
@@ -549,7 +663,41 @@ def slack_test() -> int:
     return 0 if all_ok else 1
 
 
+def elyes_preview(days: int = 4) -> int:
+    """엘리스 최근 글을 '처음 보는 글'로 치고 카드만 로그에 찍는다. 슬랙·상태 파일은 건드리지 않는다.
+    (워크플로 수동 실행 elyes_preview=1 — 실행 환경에서 글자 인식이 되는지 확인용)"""
+    now = dt.datetime.now(KST).replace(tzinfo=None)
+    since = (now.date() - dt.timedelta(days=days)).strftime("%Y.%m.%d")
+    rows = [x for x in S.fetch_elyes(S.elyes_regions({})) if x["date"] >= since]
+    print(f"엘리스 미리보기 · 기준 {now:%Y-%m-%d %H:%M} KST · {since} 이후 글 {len(rows)}건 · OCR {'가능' if OCR.available() else '불가'}")
+    for x in rows:
+        if not x["mine"]:
+            print(f"\n[제외: 조건 밖·모집 아님] {x['title']}")
+            continue
+        n = {"board_id": f"elyes:{x['id']}", "source": "elyes", "title": f"롯데 엘리스 — {x['title']}",
+             "name": x["title"][:40], "raw_title": x["title"], "url": x["url"], "pdf": None,
+             "images": x["images"], "posted": x["date"]}
+        e = elyes_enrich(n, now)
+        if e is None:
+            print(f"\n[보내지 않음: 마감 지남] {x['title']}")
+            continue
+        c = slack_item(e, now.date())
+        if c["skip"]:
+            print(f"\n[보내지 않음: 모든 타입 전용 {MIN_AREA:g}㎡ 미만] {x['title']}")
+            continue
+        print(f"\n[보냄] {x['title']}\n  " + "\n  ".join(c["flags"] + [c["top"]]))
+        if c["rows"]:
+            for r in [c["head"]] + c["rows"]:
+                print("  | " + " | ".join(r) + " |")
+        else:
+            print("  " + c["fallback_text"])
+        print(f"  {c['note']}\n  [공고 보기] {c['notice_url']}")
+    return 0
+
+
 def main() -> int:
+    if os.environ.get("ELYES_PREVIEW") == "1":
+        return elyes_preview()
     if os.environ.get("SLACK_TEST") == "1":
         if os.environ.get("DRY_RUN") == "1":
             print("slack test: dry_run=1 이라 보내지 않음")
@@ -643,7 +791,7 @@ def main() -> int:
         cards: list[dict] = []
         seen: set[str] = set()
         by_key = {str(n.get("board_id") or n.get("url")): n for n in news}
-        for r in urgent_open:
+        for r in ([] if QUIET else urgent_open):
             key = str(r.get("board_id") or r.get("url"))
             seen.add(key)
             if key in by_key:            # 신규이면서 마감임박이면 신규 쪽 자세한 값(평형·PDF)을 쓴다
@@ -671,6 +819,9 @@ def main() -> int:
         else:
             header = ""
         footer = f"⚠ 확인 실패 {len(errors)}건: " + ", ".join(e[:40] for e in errors) if errors else ""
+        if QUIET and not cards:
+            header = footer = ""                   # 추가 실행은 새 공고가 있을 때만 보낸다
+            print("slack: 추가 실행 — 새 공고 없음, 보내지 않음")
         if header or footer:                       # 요약 줄은 따로 한 메시지, 공고는 1건 = 메시지 1개
             if slk.send_text("\n".join(x for x in (f"*{header}*" if header else "", footer) if x)):
                 slack_msgs += 1
