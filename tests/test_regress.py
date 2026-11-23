@@ -90,6 +90,16 @@ def test_empty_columns_dropped():
     assert len(head) == 6
 
 
+def test_asset_names_do_not_collide():
+    """같은 날 한글 제목 공고 둘(공간지원리츠)의 사본 이름이 겹치지 않는다(검수 2/2 지적)."""
+    import archive as A
+    a = A.asset_name({"source": "spacereits", "board_id": "space:26.11.23|서울 A 공고"}, 1, "pdf")
+    b = A.asset_name({"source": "spacereits", "board_id": "space:26.11.23|서울 B 공고"}, 1, "pdf")
+    assert a != b and a.isascii() and b.isascii()
+    sh = {"source": "sh", "board_id": "sh:313647"}
+    assert A.asset_name(sh, 1, "pdf") == A.asset_name(dict(sh), 1, "pdf")       # 같은 공고는 늘 같은 이름
+
+
 def test_slack_shows_gate_lines():
     import slack as SL
     c = {"top": "t", "flags": [], "rows": None, "fallback_text": "임대조건: 공고문 확인", "note": "n",

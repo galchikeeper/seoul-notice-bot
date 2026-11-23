@@ -47,9 +47,13 @@ def _release(tok: str) -> dict:
 
 def asset_name(n: dict, i: int, kind: str) -> str:
     """영문·숫자만(깃허브가 한글 이름을 바꿔 버려서). 공고마다 고정(날짜 없음 — 같은 공고는 한 번만 올림). 예: sh-313647-1.pdf"""
+    import hashlib
     src = n.get("source") or "soco"
-    nid = re.sub(r"[^0-9A-Za-z]", "", str(n.get("board_id") or n.get("url") or "").split(":")[-1])[-24:] or "x"
-    return f"{src}-{nid}-{i}.{kind or 'bin'}"
+    key = str(n.get("board_id") or n.get("url") or "")
+    nid = re.sub(r"[^0-9A-Za-z]", "", key.split(":")[-1])[-24:] or "x"
+    # 한글이 지워져 구분이 사라지는 경우(공간지원리츠 '날짜|제목')에도 겹치지 않게 원래 구분값의 해시를 붙인다
+    h = hashlib.sha1(key.encode()).hexdigest()[:8]
+    return f"{src}-{nid}-{h}-{i}.{kind or 'bin'}"
 
 
 def _assets(tok: str, rel_id: int) -> dict:
