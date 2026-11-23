@@ -291,7 +291,10 @@ class SlackBot(Slack):
             if not j.get("ok"):
                 print(f"slack(bot): 업로드 주소 실패 {j.get('error')}")
                 continue
-            requests.post(j["upload_url"], files={"file": (fn, data)}, timeout=120)
+            up = requests.post(j["upload_url"], files={"file": (fn, data)}, timeout=120)
+            if up.status_code != 200:
+                print(f"slack(bot): 파일 올리기 실패 HTTP {up.status_code}")
+                continue
             k = self._api("files.completeUploadExternal", json={
                 "files": [{"id": j["file_id"], "title": fn}], "channel_id": self.channel, "thread_ts": self.last_ts})
             done += bool(k.get("ok"))

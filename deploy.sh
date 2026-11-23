@@ -21,6 +21,10 @@ urllib.request.urlopen(req, timeout=20)
 PY
 }
 
+# 끝나면(성공·실패 모두) main 으로 돌아간다 — 맥의 공간지원리츠 스크립트가 이 폴더의 코드를 불러 쓰므로
+# 시험을 통과하지 못한 fix/ 가지 코드가 작업트리에 남지 않게 한다(가지 자체는 남음)
+back_to_main() { git checkout -q main 2>/dev/null && git pull -q --ff-only 2>/dev/null || true; }
+
 if [[ "$BR" != fix/* ]]; then
   echo "fix/ 가지에서만 배포한다(지금: $BR)"; exit 2
 fi
@@ -28,6 +32,7 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "커밋 안 한 변경이 있다 — 먼저 커밋"; exit 2
 fi
 
+trap back_to_main EXIT
 git fetch -q origin main
 if ! git merge -q --no-edit origin/main; then
   git merge --abort

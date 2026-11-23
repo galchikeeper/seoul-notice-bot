@@ -135,8 +135,9 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}   # 있으면 카드 스레드에 공고문 파일 첨부(없으면 사본 버튼만)
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           CARD_LIMIT: "3"
+          SITE_REPORT: ${{ inputs.site_report }}
         run: |
-          if [ "${{ inputs.site_report }}" = "1" ]; then python site_report.py; exit 0; fi
+          if [ "$SITE_REPORT" = "1" ]; then python site_report.py; exit 0; fi
           python bot.py
 
       - name: 결과 커밋

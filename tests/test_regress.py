@@ -106,6 +106,8 @@ def test_live(case):
     os.environ["READ_WAITS"] = "3,10,20"
     res = R.read({"source": case["source"], "title": case["title"], "raw_title": case["title"],
                   "url": case["url"], "types": [], "elig": [("x", "y")], "deadline": "x"}, tries=3)
+    if res["page_problem"].startswith(("열리지 않음", "봇 실행 서버")):
+        pytest.skip(f"사이트 접속 안 됨(코드 문제 아님): {res['page_problem']}")   # 오류 화면·제목 불일치는 실패로 남김
     assert res["page_problem"] == "", res["page_problem"]
     assert res["files"], "첨부를 찾지 못함"
     f = res["files"][0]

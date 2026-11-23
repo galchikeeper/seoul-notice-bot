@@ -35,7 +35,7 @@ def check(card: dict, res: dict, archived: list[dict]) -> list[str]:
         if p:
             out.append(f"링크 — {p}")
     files = res.get("files") or []
-    got = [f for f in files if f.get("data") and f.get("kind") not in ("html", "?")]
+    got = [f for f in files if f.get("data") and f.get("kind") in ("pdf", "hwp", "hwpx", "docx", "jpg", "png", "gif")]
     if not files:
         out.append("파일 — 공고 페이지에서 첨부를 찾지 못함")
     elif not got:
@@ -71,6 +71,10 @@ def prepare(n: dict, build, archive=None, tries: int = 3) -> tuple[dict, dict, l
     waits = R._waits()
     res, card, archived, probs = {}, {}, [], ["처음"]
     for i in range(tries):
+        if i:                                     # 재시도는 실제로 다시 접속한다(앞 회차의 '접속 안 됨' 표시를 지움)
+            R.DEAD_HOSTS.discard(R._host(n.get("url", "")))
+            for f in res.get("files", []):
+                R.DEAD_HOSTS.discard(R._host(f.get("url", "")))
         res = R.read(n)
         m = R.fill(n, res)
         card = build(m)
@@ -104,8 +108,8 @@ def record(n: dict, probs: list[str], res: dict, path: Path = FAILURES) -> None:
                 x = json.loads(ln)
             except ValueError:
                 continue
-            if x.get("key") == key and x.get("date") == today:
-                return
+            if x.get("key") == key and (x.get("date") == today or x.get("status") == "open"):
+                return                            # 같은 실패가 아직 열려 있으면 다시 쌓지 않는다
     row = {"date": today, "key": key, "source": n.get("source") or "soco", "id": str(n.get("board_id") or ""),
            "title": (n.get("raw_title") or n.get("title") or "")[:120], "url": n.get("url", ""),
            "problems": probs, "files": [{k: f.get(k) for k in ("name", "url", "kind", "size", "how", "chars")}

@@ -637,7 +637,8 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
 def gated(n: dict, today: dt.date) -> dict:
     """공고 1건 → 공통 읽기(reader) → 카드 → 보내기 전 관문(gate). 실패는 카드에 '무엇이 왜'로 적고 실패 목록에 쌓는다."""
     try:
-        card, res, probs = GATE.prepare(n, lambda m: slack_item(m, today), archive=AR.to_github)
+        dry = os.environ.get("DRY_RUN") == "1"   # 드라이런은 사본 보관(릴리스 업로드)도 하지 않는다
+        card, res, probs = GATE.prepare(n, lambda m: slack_item(m, today), archive=None if dry else AR.to_github)
     except Exception as e:                       # 관문 자체가 터져도 카드는 보낸다(표시 달고)
         print(f"gate: 오류 {type(e).__name__} — {str(n.get('title'))[:30]}")
         card = slack_item(n, today)

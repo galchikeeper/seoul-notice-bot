@@ -29,6 +29,7 @@ def _h(tok: str) -> dict:
 
 
 _REL: dict = {}
+_HAVE: dict = {}       # 이번 실행에서 아는 자산 이름 → 주소(올린 직후에도 갱신)
 
 
 def _release(tok: str) -> dict:
@@ -45,10 +46,24 @@ def _release(tok: str) -> dict:
 
 
 def asset_name(n: dict, i: int, kind: str) -> str:
-    """영문·숫자만(깃허브가 한글 이름을 바꿔 버려서). 예: 20261123-sh-313647-1.pdf"""
+    """영문·숫자만(깃허브가 한글 이름을 바꿔 버려서). 공고마다 고정(날짜 없음 — 같은 공고는 한 번만 올림). 예: sh-313647-1.pdf"""
     src = n.get("source") or "soco"
-    nid = re.sub(r"[^0-9A-Za-z]", "", str(n.get("board_id") or "").split(":")[-1])[:24] or "x"
-    return f"{dt.date.today():%Y%m%d}-{src}-{nid}-{i}.{kind or 'bin'}"
+    nid = re.sub(r"[^0-9A-Za-z]", "", str(n.get("board_id") or n.get("url") or "").split(":")[-1])[-24:] or "x"
+    return f"{src}-{nid}-{i}.{kind or 'bin'}"
+
+
+def _assets(tok: str, rel_id: int) -> dict:
+    """릴리스 자산 전체(쪽 넘김) — 릴리스 객체의 assets 는 일부만 올 수 있다."""
+    have, page = {}, 1
+    while True:
+        r = requests.get(f"{API}/repos/{_repo()}/releases/{rel_id}/assets", headers=_h(tok), timeout=30,
+                         params={"per_page": 100, "page": page})
+        r.raise_for_status()
+        xs = r.json()
+        have.update({a["name"]: a["browser_download_url"] for a in xs})
+        if len(xs) < 100:
+            return have
+        page += 1
 
 
 def to_github(n: dict, files: list[dict]) -> list[dict]:
@@ -58,7 +73,9 @@ def to_github(n: dict, files: list[dict]) -> list[dict]:
         print("archive: GitHub 토큰 없음 — 사본 보관 건너뜀")
         return []
     rel = _release(tok)
-    have = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
+    if not _HAVE:
+        _HAVE.update(_assets(tok, rel["id"]))
+    have = _HAVE
     out = []
     for i, f in enumerate([f for f in files if f.get("data") and f.get("kind") in MIME][:3], 1):
         nm = asset_name(n, i, f["kind"])
@@ -66,9 +83,10 @@ def to_github(n: dict, files: list[dict]) -> list[dict]:
             up = rel["upload_url"].split("{")[0]
             r = requests.post(up, params={"name": nm}, data=f["data"], timeout=120,
                               headers={**_h(tok), "Content-Type": MIME[f["kind"]]})
-            if r.status_code == 422:                 # 같은 이름이 방금 올라감
-                rel.clear()
-                have = {a["name"]: a["browser_download_url"] for a in _release(tok).get("assets", [])}
+            if r.status_code == 422:                 # 같은 이름이 이미 있음 — 목록을 다시 읽는다
+                _HAVE.clear()
+                _HAVE.update(_assets(tok, rel["id"]))
+                have = _HAVE
             else:
                 r.raise_for_status()
                 have[nm] = r.json()["browser_download_url"]
