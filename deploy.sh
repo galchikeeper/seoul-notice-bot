@@ -37,13 +37,14 @@ fi
 git push -q -u origin "$BR" || { report "🔴 임대주택 봇 배포 중단 — 가지 올리기 실패 · $SUMMARY"; exit 1; }
 SHA=$(git rev-parse HEAD)
 
-gh workflow run test.yml --ref "$BR" >/dev/null || { report "🔴 임대주택 봇 배포 중단 — 시험 워크플로 실행 실패 · $SUMMARY"; exit 1; }
+# 가지에 올리면 시험이 자동으로 돈다(push). 그 커밋의 실행이 없으면(경로 제외 등) 직접 실행한다.
 RUN=""
-for _ in $(seq 1 30); do
+for i in $(seq 1 30); do
   sleep 10
-  RUN=$(gh run list --workflow test.yml --branch "$BR" --event workflow_dispatch --json databaseId,headSha \
+  RUN=$(gh run list --workflow test.yml --branch "$BR" --json databaseId,headSha \
         -q "[.[] | select(.headSha==\"$SHA\")][0].databaseId" 2>/dev/null)
   [ -n "$RUN" ] && break
+  [ "$i" = 6 ] && gh workflow run test.yml --ref "$BR" >/dev/null 2>&1
 done
 [ -z "$RUN" ] && { report "🔴 임대주택 봇 배포 중단 — 시험 실행을 찾지 못함 · $SUMMARY"; exit 1; }
 echo "시험 실행: $RUN"
