@@ -667,6 +667,9 @@ def elyes_preview(days: int = 4) -> int:
     """엘리스 최근 글을 '처음 보는 글'로 치고 카드만 로그에 찍는다. 슬랙·상태 파일은 건드리지 않는다.
     (워크플로 수동 실행 elyes_preview=1 — 실행 환경에서 글자 인식이 되는지 확인용)"""
     now = dt.datetime.now(KST).replace(tzinfo=None)
+    at = os.environ.get("ELYES_PREVIEW_AT", "").strip()       # 예: 2026-11-21T09:00 — 그 시각에 돌았다고 치고 본다
+    if at:
+        now = dt.datetime.fromisoformat(at)
     since = (now.date() - dt.timedelta(days=days)).strftime("%Y.%m.%d")
     rows = [x for x in S.fetch_elyes(S.elyes_regions({})) if x["date"] >= since]
     print(f"엘리스 미리보기 · 기준 {now:%Y-%m-%d %H:%M} KST · {since} 이후 글 {len(rows)}건 · OCR {'가능' if OCR.available() else '불가'}")

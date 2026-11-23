@@ -25,6 +25,10 @@ on:
         description: "엘리스 미리보기 — 1이면 최근 4일 엘리스 글의 카드를 로그에만 찍음 (발송·상태 변경 없음)"
         required: false
         default: "0"
+      preview_at:
+        description: "엘리스 미리보기 기준 시각(KST, 예: 2026-11-21T09:00). 비우면 지금"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -112,6 +116,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           RUN_KIND: ${{ github.event.schedule == '17 9 * * 5' && 'extra' || 'main' }}
           ELYES_PREVIEW: ${{ inputs.elyes_preview }}
+          ELYES_PREVIEW_AT: ${{ inputs.preview_at }}
           CARD_LIMIT: "3"
         run: python bot.py
 
