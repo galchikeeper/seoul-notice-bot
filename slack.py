@@ -38,6 +38,7 @@ class Slack:
         self.webhook = (webhook or "").strip()
         self.last_error = ""
         self.table_mode = ""            # 처음 성공한 표 형식을 기억한다: data_table / table / text
+        self.elig_mode = ""             # 자격 형식: table(2열 표) / box(네모 칸)
 
     @classmethod
     def from_env(cls) -> "Slack | None":
@@ -157,42 +158,70 @@ def elig_box(c: dict) -> str:
     return f"*👤 자격*\n```{elig_lines(c)}```"
 
 
-def notice_blocks(c: dict, mode: str) -> list[dict]:
+def elig_table(c: dict, mode: str) -> dict:
+    """자격 조건 2열 표(항목 | 내용). 판정 없이 공고문에 보이는 것만, 중요한 순서대로."""
+    import eligibility as E
+    rows = E.table_rows(c["elig_items"])
+    cells = [[{"type": "raw_text", "text": h} for h in ("자격", "내용")]]
+    cells += [[{"type": "raw_text", "text": k}, {"type": "raw_text", "text": v}] for k, v in rows]
+    if mode == "data_table":
+        return {"type": "data_table", "caption": "자격 조건", "rows": cells, "page_size": max(1, min(len(rows), 30))}
+    return {"type": "table", "rows": cells, "column_settings": [None, {"is_wrapped": True}]}
+
+
+def notice_blocks(c: dict, mode: str, elig_style: str = "box") -> list[dict]:
+    """mode: 임대조건 표 형식(data_table/table/text). elig_style: 자격을 표(table)로 붙일지 네모 칸(box)으로 붙일지."""
     top = "\n".join([*c.get("flags", []), f"*{_esc(c['top'])}*"])
     blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": top[:2900]}}]
-    elig = elig_box(c)
+    has_elig = "elig_items" in c or bool(c.get("elig"))
+    tmode = mode if mode in ("data_table", "table") else "table"
     if c.get("rows") and mode in ("data_table", "table"):
         blocks.append(table_block(c, mode))
-        if elig:                            # 임대조건 표 바로 아래에 자격 칸을 붙인다
-            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": elig[:2900]}})
-    else:                                   # 표가 없으면 임대조건 줄과 자격을 한 칸에
+    else:
         rent = "\n".join(_esc(x) for x in c["fallback_text"].split("\n"))
-        body = f"*🏠 임대조건 · 👤 자격*\n```{rent}\n\n{elig_lines(c)}```" if elig else rent
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body[:2900]}})
+        if has_elig and elig_style == "box" and c.get("elig_items"):     # 표가 없으면 임대조건 줄과 자격을 한 칸에
+            rent = f"*🏠 임대조건 · 👤 자격*\n```{rent}\n\n{elig_lines(c)}```"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": rent[:2900]}})
+    if has_elig and not c.get("elig_items"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*👤 자격*  공고문 확인"}})
+    elif has_elig and elig_style.endswith("table"):        # 임대조건 표 바로 아래에 자격 표
+        blocks.append(elig_table(c, elig_style.split(":")[0] if ":" in elig_style else tmode))
+    elif has_elig and c.get("rows") and mode in ("data_table", "table"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": elig_box(c)[:2900]}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(c["note"])[:2900]}]})
     blocks.append(card_blocks({**c, "title": "", "summary": "", "meta": ""}, 0)[2])   # [공고 보기] [신청하기]
     return blocks
 
 
 def _send_notice(self, c: dict) -> bool:
-    """표 형식을 data_table → table → 줄 목록 순서로 시도한다. 어느 형식으로 나갔는지 로그에 남긴다."""
-    order = ["data_table", "table", "text"]
-    if self.table_mode:
-        order = order[order.index(self.table_mode):]
-    if not c.get("rows"):
-        order = ["text"]
-    for mode in order:
-        if self._post({"text": c["top"], "blocks": notice_blocks(c, mode)}):
+    """임대조건 표 data_table → table → 줄 목록, 자격은 표 → 네모 칸 순서로 시도한다.
+    한 메시지에 표 두 개를 슬랙이 거절하면(400 invalid_…) 자격만 네모 칸으로 바꿔 다시 보낸다. 처음 성공한 조합을 기억한다."""
+    if c.get("rows"):
+        order = [(m, e) for m in ("data_table", "table", "text") for e in ("table", "box")]
+        if self.table_mode:
+            order = [x for x in order if ("data_table", "table", "text").index(x[0])
+                     >= ("data_table", "table", "text").index(self.table_mode)]
+    else:
+        order = [("text", "data_table:table"), ("text", "table:table"), ("text", "box")]
+    if self.elig_mode == "box" or not c.get("elig_items"):     # 자격 항목이 없으면 표/칸 구분이 의미 없다
+        order = [x for x in order if x[1] == "box"]
+    for mode, est in order:
+        if self._post({"text": c["top"], "blocks": notice_blocks(c, mode, est)}):
             if c.get("rows"):
                 if self.table_mode != mode:
                     print(f"slack: 표 형식 {mode} 로 보냄")
                 self.table_mode = mode
+            if c.get("elig_items"):
+                em = "box" if est == "box" else "table"
+                if self.elig_mode != em:
+                    print(f"slack: 자격 형식 {em} 로 보냄")
+                self.elig_mode = em
             return True
         # 형식을 바꿔 다시 보내는 건 블록 검증 오류(400 invalid_…)일 때만. 그 밖(429·5xx·연결 오류)은 여기서 멈춘다
-        if mode == "text" or not re.match(r"400 invalid_", self.last_error):
+        if (mode, est) == order[-1] or not re.match(r"400 invalid_", self.last_error):
             print(f"slack: 공고 전송 실패({self.last_error}) — 형식을 바꾸지 않고 멈춤")
             return False
-        print(f"slack: {mode} 블록 거부({self.last_error}) → 다음 형식으로 다시 보냄")
+        print(f"slack: {mode}/{est} 블록 거부({self.last_error}) → 다음 형식으로 다시 보냄")
     return False
 
 

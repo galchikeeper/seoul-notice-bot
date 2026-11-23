@@ -125,6 +125,40 @@ class EligBox(unittest.TestCase):
         c2 = bot.slack_item({**n, "elig": []}, dt.date(2026, 11, 21))
         self.assertEqual(SL.notice_blocks(c2, "data_table")[2]["text"]["text"], "*👤 자격*  공고문 확인")
 
+    def test_elig_table_and_fallback(self):
+        rows = [{"type": "A", "deposit": 10_000_000, "rent": 628_000}]
+        n = {**notice("[어바니엘 천호] 공실세대 모집공고 (접수기간: 11/20~11/22)"), "ely_rows": rows,
+             "deadline": "11/22(일)", "elig": [("소득", "기준 있음*"), ("불가", "법인·외국인")]}
+        c = bot.slack_item(n, dt.date(2026, 11, 21))
+        b = SL.notice_blocks(c, "data_table", "table")
+        self.assertEqual([x["type"] for x in b], ["section", "data_table", "data_table", "context", "actions"])
+        et = b[2]
+        self.assertEqual([[x["text"] for x in r] for r in et["rows"]],
+                         [["자격", "내용"], ["소득", "기준 있음*"], ["불가", "법인·외국인"], ["*", "금액은 공고문 참고"]])
+        self.assertEqual(et["page_size"], 3)
+
+        # 슬랙이 표 두 개를 거절하면 자격만 네모 칸으로 바꿔 다시 보내고, 그 형식을 기억한다
+        sent = []
+        sl = SL.Slack("https://example.invalid/hook")
+        def fake_post(payload):
+            tables = sum(x["type"] in ("data_table", "table") for x in payload["blocks"])
+            if tables > 1:
+                sl.last_error = "400 invalid_blocks"
+                return False
+            sent.append(payload); sl.last_error = ""
+            return True
+        sl._post = fake_post
+        self.assertTrue(sl.send_notice(c))
+        self.assertEqual([x["type"] for x in sent[0]["blocks"]][:3], ["section", "data_table", "section"])
+        self.assertEqual((sl.table_mode, sl.elig_mode), ("data_table", "box"))
+
+        # 표 두 개가 받아들여지면 자격 표로 나간다
+        sent.clear(); sl2 = SL.Slack("https://example.invalid/hook")
+        sl2._post = lambda payload: sent.append(payload) or True
+        self.assertTrue(sl2.send_notice(c))
+        self.assertEqual(sl2.elig_mode, "table")
+        self.assertEqual(sum(x["type"] == "data_table" for x in sent[0]["blocks"]), 2)
+
     def test_note_dedup(self):                      # 비고 '여성만 입주가능'은 자격 칸(성별 여성만)과 겹쳐서 뺀다
         rows = [{"type": "B", "deposit": 15_000_000, "rent": 690_000, "note": "여성만입주가능"}]
         n = {**notice("[어바니엘 한강] 공실세대 모집공고 (접수기간: 11/20~11/22)"), "ely_rows": rows,

@@ -157,6 +157,16 @@ def line(items) -> str:
     return "자격: " + " · ".join(v if k == "※" else f"{k} {v}" for k, v in items)
 
 
+def table_rows(items) -> list[tuple[str, str]]:
+    """자격 2열 표의 행. 각주는 맨 아래 행으로 한 번만."""
+    rows = [(k, v) for k, v in items if k != "※"]
+    if any(v.endswith("*") for _, v in items):
+        rows.append(("*", "금액은 공고문 참고"))
+    if any(k == "※" for k, _ in items):
+        rows.append(("※", "그 밖은 공고문 확인"))
+    return rows
+
+
 def box_lines(items) -> list[str]:
     """슬랙 네모 칸(코드 블록)에 넣을 줄: '나이  만19~39세' 처럼 한 줄에 한 항목, 위에서 아래로.
     '기준 있음*' 처럼 금액을 못 옮긴 항목이 있으면 맨 아래에 각주 한 줄로 모은다(같은 말 반복 방지)."""
