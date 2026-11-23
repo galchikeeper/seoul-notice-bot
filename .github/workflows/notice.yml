@@ -25,6 +25,10 @@ on:
         description: "카드 미리보기 — 1이면 최근 4일 엘리스 글 + 접수 중 청년안심주택·마이홈·SH 카드를 로그에만 찍음 (발송·상태 변경 없음)"
         required: false
         default: "0"
+      preview_send:
+        description: "미리보기 카드 4건을 슬랙에 🧪 시험으로 보냄(elyes_preview=1 과 함께, 상태 파일 변경 없음)"
+        required: false
+        default: "0"
       preview_at:
         description: "엘리스 미리보기 기준 시각(KST, 예: 2026-11-21T09:00). 비우면 지금"
         required: false
@@ -117,6 +121,7 @@ jobs:
           RUN_KIND: ${{ github.event.schedule == '17 9 * * 5' && 'extra' || 'main' }}
           ELYES_PREVIEW: ${{ inputs.elyes_preview }}
           ELYES_PREVIEW_AT: ${{ inputs.preview_at }}
+          PREVIEW_SEND: ${{ inputs.preview_send }}
           CARD_LIMIT: "3"
         run: python bot.py
 

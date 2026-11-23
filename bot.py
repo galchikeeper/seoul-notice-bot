@@ -704,6 +704,9 @@ def slack_test() -> int:
     return 0 if all_ok else 1
 
 
+PREVIEW_CARDS: list[tuple[str, dict]] = []      # 미리보기에서 만든 카드 (출처, 카드) — 시험 발송용
+
+
 def elyes_preview(days: int = 4) -> int:
     """엘리스 최근 글을 '처음 보는 글'로 치고 카드만 로그에 찍는다. 슬랙·상태 파일은 건드리지 않는다.
     (워크플로 수동 실행 elyes_preview=1 — 실행 환경에서 글자 인식이 되는지 확인용)"""
@@ -729,6 +732,7 @@ def elyes_preview(days: int = 4) -> int:
         if c["skip"]:
             print(f"\n[보내지 않음: 모든 타입 전용 {MIN_AREA:g}㎡ 미만] {x['title']}")
             continue
+        PREVIEW_CARDS.append(("엘리스", c))
         print(f"\n[보냄] {x['title']}\n  " + "\n  ".join(c["flags"] + [c["top"]]))
         if c["rows"]:
             for r in [c["head"]] + c["rows"]:
@@ -737,10 +741,35 @@ def elyes_preview(days: int = 4) -> int:
             print("  " + c["fallback_text"])
         print(f"  👤 {c['elig']}\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
     _preview_others(dt.datetime.now(KST).replace(tzinfo=None))   # 다른 출처는 지금 기준
+    if os.environ.get("PREVIEW_SEND") == "1":
+        return preview_send(now)
     return 0
 
 
+def preview_send(now: dt.datetime) -> int:
+    """미리보기 카드 몇 개를 슬랙에 '🧪 시험'으로 보낸다(카드 형식 확인용). 상태 파일은 건드리지 않는다.
+    고르는 것: 엘리스 2건 + 자격 줄이 긴 청년안심주택 1건 + 자격을 읽은 SH 1건."""
+    slk = Slack.from_env()
+    if not slk:
+        print("시험 발송: SLACK_WEBHOOK_URL 없음 — 보내지 않음")
+        return 1
+    ok_elig = lambda c: not c["elig"].endswith("공고문 확인") or "·" in c["elig"]
+    pick = [c for src, c in PREVIEW_CARDS if src == "엘리스"][:2]
+    soco = [c for src, c in PREVIEW_CARDS if src == "청년안심주택" and ok_elig(c)]
+    pick += sorted(soco, key=lambda c: -len(c["elig"]))[:1]
+    pick += [c for src, c in PREVIEW_CARDS if src == "SH" and ok_elig(c)][:1]
+    head = (f"🧪 *시험 발송* — 카드 형식 확인용, 실제 알림 아님 · 상태 파일 변경 없음 · {len(pick)}건\n"
+            f"엘리스 카드는 {now:%m/%d %H:%M} 에 돌았다고 친 재현이라 마감·D-day 가 그 시각 기준입니다.")
+    sent = failed = 0
+    for i, c in enumerate([None] + pick):
+        good = slk.send_text(head) if c is None else slk.send_notice({**c, "top": "🧪 시험 · " + c["top"]})
+        sent, failed = sent + bool(good), failed + (not good)
+    print(f"시험 발송: 메시지 {sent}건 성공 / {failed}건 실패 / 표 형식 {slk.table_mode or '없음'}")
+    return 1 if failed else 0
+
+
 def _print_card(label: str, c: dict) -> None:
+    PREVIEW_CARDS.append((label, c))
     print(f"\n[{label}]\n  " + "\n  ".join(c["flags"] + [c["top"]]))
     if c["rows"]:
         head = c.get("head") or ["타입", "전용㎡", "대상", "보증금 비율", "보증금(만원)", "월세(만원)"]
