@@ -104,9 +104,10 @@ def summarize(text: str) -> list[tuple[str, str]]:
         out.append(("차량", STD))
 
     # 거주 — 필수 거주지 · 우선순위
-    res = _uniq(m.group(1) for m in re.finditer(
+    city = lambda g: re.sub(r"^.*서울(?:특별)?시$", "서울시", g)     # '…않았지만서울시' 처럼 앞 글자가 붙어 잡힌 경우
+    res = _uniq(city(m.group(1)) for m in re.finditer(
         r"(서울(?:특별)?시|[가-힣]{1,4}(?:구|시|군))(?:에)?(?:거주(?:하는|자|중인)?)(?:를|에게)?(?:[가-힣]{0,4})?우선", t))
-    must = _uniq(m.group(1) for m in re.finditer(r"(서울(?:특별)?시|[가-힣]{1,4}(?:구|시|군))에거주하는", t))
+    must = _uniq(city(m.group(1)) for m in re.finditer(r"(서울(?:특별)?시|[가-힣]{1,4}(?:구|시|군))에거주하는", t))
     live = []
     if must:
         live.append("·".join(must[:2]) + " 거주자")

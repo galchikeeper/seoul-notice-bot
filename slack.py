@@ -23,6 +23,11 @@ def card_blocks(c: dict, idx: int) -> list[dict]:
         buttons.append({"type": "button", "action_id": f"apply_{idx}", "style": "primary",
                         "text": {"type": "plain_text", "text": "신청하기"},
                         "url": c["apply_url"]})
+    for k, f in enumerate((c.get("files") or [])[:2]):          # 받은 공고문 사본(원래 링크가 막혀도 열림)
+        label = "📎 공고문 사본" if k == 0 else f"📎 첨부 {k + 1}"
+        buttons.append({"type": "button", "action_id": f"file_{idx}_{k}",
+                        "text": {"type": "plain_text", "text": f"{label}({f.get('kind', '').upper()})"[:75]},
+                        "url": f["url"][:3000]})
     return [
         {"type": "section",
          "text": {"type": "mrkdwn", "text": f"*{_esc(c['title'])}*\n{_esc(c['summary'])}"[:2900]}},
@@ -176,6 +181,9 @@ def notice_blocks(c: dict, mode: str, elig_style: str = "box") -> list[dict]:
     임대조건 표와 자격 표 사이에는 다른 블록을 넣지 않는다."""
     top = "\n".join([*c.get("flags", []), f"*{_esc(c['top'])}*"])
     blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": top[:2900]}}]
+    if c.get("gate"):                                       # 보내기 전 관문 실패 — 무엇이 왜 (깨진 카드를 표시 없이 보내지 않는다)
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": (
+            "⚠️ *자동 점검 실패* — 아래 항목은 공고문으로 직접 확인\n" + "\n".join("• " + _esc(x) for x in c["gate"]))[:2900]}]})
     has_elig = "elig_items" in c or bool(c.get("elig"))
     if c.get("rows") and mode in ("data_table", "table"):
         blocks.append(table_block(c, mode))
@@ -190,7 +198,8 @@ def notice_blocks(c: dict, mode: str, elig_style: str = "box") -> list[dict]:
         blocks.append(elig_table(c))
     elif has_elig and c.get("rows") and mode in ("data_table", "table"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": elig_box(c)[:2900]}})
-    blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(c["note"])[:2900]}]})
+    note = c["note"] + (" · ✅ 자동 점검 통과(링크·조건·공고문 파일)" if "gate" in c and not c["gate"] else "")
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(note)[:2900]}]})
     blocks.append(card_blocks({**c, "title": "", "summary": "", "meta": ""}, 0)[2])   # [공고 보기] [신청하기]
     return blocks
 
@@ -228,3 +237,65 @@ def _send_notice(self, c: dict) -> bool:
 
 
 Slack.send_notice = _send_notice
+
+
+# ─────────────────────────── 봇 토큰 모드(선택) — 카드 스레드에 공고문 파일 첨부 ───────────────────────────
+# 웹훅은 파일을 올릴 수 없고 메시지 ts 도 돌려주지 않는다. SLACK_BOT_TOKEN(chat:write, files:write)과
+# SLACK_CHANNEL_ID 가 둘 다 있으면 chat.postMessage 로 보내고, 그 스레드에 받은 공고문 파일을 올린다.
+# 둘 중 하나라도 없으면 지금처럼 웹훅 + '📎 공고문 사본' 버튼(GitHub 릴리스 사본)만 쓴다.
+class SlackBot(Slack):
+    API = "https://slack.com/api/"
+
+    def __init__(self, token: str, channel: str):
+        super().__init__("bot")
+        self.token, self.channel, self.last_ts = token, channel, ""
+
+    @classmethod
+    def from_env(cls) -> "SlackBot | None":
+        t, ch = os.environ.get("SLACK_BOT_TOKEN", "").strip(), os.environ.get("SLACK_CHANNEL_ID", "").strip()
+        return cls(t, ch) if t and ch else None
+
+    def _api(self, method: str, **kw):
+        h = {"Authorization": f"Bearer {self.token}"}
+        r = requests.post(self.API + method, headers=h, timeout=60, **kw)
+        try:
+            return r.json()
+        except ValueError:
+            return {"ok": False, "error": f"http_{r.status_code}"}
+
+    def _post(self, payload: dict) -> bool:
+        payload = {**payload, "channel": self.channel, "unfurl_links": False, "unfurl_media": False}
+        time.sleep(1.1)
+        j = self._api("chat.postMessage", json=payload)
+        if j.get("ok"):
+            self.last_error, self.last_ts = "", j.get("ts", "")
+            return True
+        err = str(j.get("error", "unknown"))[:40]
+        self.last_error = f"400 {err}" if err.startswith("invalid_") else f"api {err}"
+        print(f"slack(bot): 실패 {self.last_error}")
+        return False
+
+    def upload_thread(self, files: list[dict]) -> int:
+        """마지막으로 보낸 카드의 스레드에 파일 올리기(files.getUploadURLExternal → 업로드 → completeUploadExternal)."""
+        done = 0
+        for f in files:
+            data = f.get("data") or b""
+            if not data or not self.last_ts:
+                continue
+            fn = re.sub(r"[\\/:*?\"<>|]", "_", f.get("name") or "공고문")[:80]
+            j = self._api("files.getUploadURLExternal", data={"filename": fn, "length": len(data)})
+            if not j.get("ok"):
+                print(f"slack(bot): 업로드 주소 실패 {j.get('error')}")
+                continue
+            requests.post(j["upload_url"], files={"file": (fn, data)}, timeout=120)
+            k = self._api("files.completeUploadExternal", json={
+                "files": [{"id": j["file_id"], "title": fn}], "channel_id": self.channel, "thread_ts": self.last_ts})
+            done += bool(k.get("ok"))
+            if not k.get("ok"):
+                print(f"slack(bot): 스레드 첨부 실패 {k.get('error')}")
+        return done
+
+
+def from_env() -> "Slack | None":
+    """봇 토큰 모드가 설정돼 있으면 그쪽, 아니면 웹훅."""
+    return SlackBot.from_env() or Slack.from_env()

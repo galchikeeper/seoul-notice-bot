@@ -1,0 +1,33 @@
+name: 시험 묶음 (배포 관문)
+
+# 무엇을 고치든 tests/ 전체(고정 시험 묶음 tests/regress/cases.json 포함)가 이 환경(ubuntu·tesseract 5.5.0 = 실제 발송 환경)에서
+# 전부 통과해야 main 에 반영한다. 해결 에이전트는 fix/ 가지에 올린 뒤 이 결과를 보고 deploy.sh 로만 반영한다.
+on:
+  push:
+    branches: ["fix/**", "main"]
+    paths-ignore: ["state.json", "failures.jsonl", "cards/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 글자 인식(OCR) 설치
+        run: |
+          sudo apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-kor \
+            || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-kor)
+          tesseract --version | head -1
+      - name: 시험 (파일 케이스 + 실제 사이트 접속)
+        env:
+          REGRESS_LIVE: "1"
+        run: python -m pytest -q tests

@@ -20,6 +20,9 @@ from pdfparse import fetch_types, type_lines, fmt_num
 from card import render
 from kakao import Kakao, update_github_secret
 from slack import Slack
+import slack as SL
+import gate as GATE
+import archive as AR
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / "state.json"
@@ -631,6 +634,49 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
             "title": top, "summary": fallback, "meta": note}
 
 
+def gated(n: dict, today: dt.date) -> dict:
+    """공고 1건 → 공통 읽기(reader) → 카드 → 보내기 전 관문(gate). 실패는 카드에 '무엇이 왜'로 적고 실패 목록에 쌓는다."""
+    try:
+        card, res, probs = GATE.prepare(n, lambda m: slack_item(m, today), archive=AR.to_github)
+    except Exception as e:                       # 관문 자체가 터져도 카드는 보낸다(표시 달고)
+        print(f"gate: 오류 {type(e).__name__} — {str(n.get('title'))[:30]}")
+        card = slack_item(n, today)
+        card["gate"] = [f"점검 — 자동 점검 중 오류({type(e).__name__})"]
+        res, probs = {"files": []}, card["gate"]
+    print(f"gate: {'통과' if not probs else '실패 ' + '; '.join(probs)[:200]} — {card['top'][:40]}"
+          f" | {' / '.join(card.get('read_how', []))[:200]}")
+    if probs and os.environ.get("DRY_RUN") != "1" and not os.environ.get("TEST_SEND"):
+        GATE.record(n, probs, res)
+    return card
+
+
+def test_send(spec: str) -> int:
+    """수동 시험 발송: TEST_SEND='sh:313647' 처럼 출처:번호 1건을 관문까지 거쳐 슬랙에 '🧪 시험'으로. 상태 파일 변경 없음."""
+    src, _, nid = spec.partition(":")
+    today = dt.datetime.now(KST).date()
+    if src != "sh":
+        print(f"시험 발송: 지원 안 하는 출처 {src}")
+        return 1
+    x = next((x for x in S.fetch_sh(3) if x["seq"] == nid), None)
+    if not x:
+        print(f"시험 발송: SH {nid} 를 목록 3쪽 안에서 못 찾음")
+        return 1
+    n = {"board_id": f"sh:{nid}", "source": "sh", "title": f"SH — {x['title']}", "name": x["title"][:40],
+         "raw_title": x["title"], "kicker": "SH 주택임대 공고", "addr": "", "deadline": "", "dday": "",
+         "urgent": False, "is_recruit": True, "types": [], "url": x["url"], "site": "", "pdf": None}
+    c = gated(n, today)
+    slk = SL.from_env()
+    if not slk or os.environ.get("DRY_RUN") == "1":
+        print("시험 발송: 보낼 곳 없음/드라이런 — 카드만 출력")
+        _print_card("시험", c)
+        return 0
+    ok = slk.send_notice({**c, "top": "🧪 시험 · " + c["top"]})
+    if ok and isinstance(slk, SL.SlackBot) and c.get("files"):
+        slk.upload_thread(c["files"])
+    print(f"시험 발송: {'성공' if ok else '실패 ' + slk.last_error}")
+    return 0 if ok else 1
+
+
 def _with_deadline(n: dict, d: dt.date) -> dict:
     """견본용: 마감일만 바꾼 사본. 미리 계산된 D-day 값은 지워서 새 마감일로 다시 센다."""
     m = {k: v for k, v in n.items() if k not in ("dday", "days_left")}
@@ -811,6 +857,8 @@ def _preview_others(now: dt.datetime) -> None:
 
 
 def main() -> int:
+    if os.environ.get("TEST_SEND"):
+        return test_send(os.environ["TEST_SEND"])
     if os.environ.get("ELYES_PREVIEW") == "1":
         return elyes_preview()
     if os.environ.get("SLACK_TEST") == "1":
@@ -830,7 +878,7 @@ def main() -> int:
     # 카톡 스위치: KAKAO_ENABLED=0 이면 카톡 발송·토큰 갱신을 하지 않는다(코드는 그대로 둠).
     # 되살리려면 워크플로의 KAKAO_ENABLED 를 "1" 로 바꾼다.
     kakao_on = os.environ.get("KAKAO_ENABLED", "1") == "1" and bool(rest_key and refresh)
-    slk = Slack.from_env()
+    slk = SL.from_env()
     dry = os.environ.get("DRY_RUN") == "1" or not (kakao_on or slk)
 
     kk = None
@@ -910,15 +958,15 @@ def main() -> int:
             key = str(r.get("board_id") or r.get("url"))
             seen.add(key)
             if key in by_key:            # 신규이면서 마감임박이면 신규 쪽 자세한 값(평형·PDF)을 쓴다
-                cards.append(slack_item({**r, **by_key[key]}, today))
+                cards.append(gated({**r, **by_key[key]}, today))
             else:
-                cards.append(slack_item(r, today))
+                cards.append(gated(r, today))
         for n in news:
             key = str(n.get("board_id") or n.get("url"))
             if key in seen:
                 continue
             seen.add(key)
-            cards.append(slack_item(n, today))
+            cards.append(gated(n, today))
         small = [c for c in cards if c["skip"]]
         cards = [c for c in cards if not c["skip"]]
         print(f"slack: 전용 {MIN_AREA:g}㎡ 미만으로 제외 {len(small)}건"
@@ -945,6 +993,8 @@ def main() -> int:
         for c in cards:
             if slk.send_notice(c):
                 slack_msgs += 1
+                if isinstance(slk, SL.SlackBot) and c.get("files"):
+                    slk.upload_thread(c["files"])         # 봇 토큰 모드: 카드 스레드에 공고문 파일
             else:
                 slack_failed += 1
         print(f"slack: 공고 {len(cards)}건 / 메시지 {slack_msgs}건 성공 / {slack_failed}건 실패"

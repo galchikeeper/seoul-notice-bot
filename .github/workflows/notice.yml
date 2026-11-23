@@ -29,6 +29,14 @@ on:
         description: "미리보기 카드 4건을 슬랙에 🧪 시험으로 보냄(elyes_preview=1 과 함께, 상태 파일 변경 없음)"
         required: false
         default: "0"
+      test_send:
+        description: "공고 1건 시험 발송(관문까지 거쳐 🧪 시험으로) — 예: sh:313647. 상태 파일 변경 없음"
+        required: false
+        default: ""
+      site_report:
+        description: "1이면 감시 사이트 전체 점검표만 로그에 찍음(발송·상태 변경 없음)"
+        required: false
+        default: "0"
       preview_at:
         description: "엘리스 미리보기 기준 시각(KST, 예: 2026-11-21T09:00). 비우면 지금"
         required: false
@@ -122,20 +130,26 @@ jobs:
           ELYES_PREVIEW: ${{ inputs.elyes_preview }}
           ELYES_PREVIEW_AT: ${{ inputs.preview_at }}
           PREVIEW_SEND: ${{ inputs.preview_send }}
+          TEST_SEND: ${{ inputs.test_send }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # 공고문 사본을 릴리스 'notice-files' 에 올림(archive.py)
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}   # 있으면 카드 스레드에 공고문 파일 첨부(없으면 사본 버튼만)
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           CARD_LIMIT: "3"
-        run: python bot.py
+        run: |
+          if [ "${{ inputs.site_report }}" = "1" ]; then python site_report.py; exit 0; fi
+          python bot.py
 
       - name: 결과 커밋
-        if: inputs.slack_test != '1' && inputs.dry_run != '1' && inputs.elyes_preview != '1'
+        if: inputs.slack_test != '1' && inputs.dry_run != '1' && inputs.elyes_preview != '1' && inputs.test_send == '' && inputs.site_report != '1'
         run: |
           git config user.name  "notice-bot"
           git config user.email "notice-bot@users.noreply.github.com"
-          git add state.json cards/ || true
+          git add state.json cards/ failures.jsonl || true
           git diff --staged --quiet || git commit -m "공고 확인 $(TZ=Asia/Seoul date +%Y-%m-%d)"
           git push   # 실패를 숨기지 않는다(발송은 됐는데 커밋이 안 올라간 상황을 실패로 드러냄)
 
       - name: 오래된 카드 정리 (60일)
-        if: inputs.slack_test != '1' && inputs.dry_run != '1' && inputs.elyes_preview != '1'
+        if: inputs.slack_test != '1' && inputs.dry_run != '1' && inputs.elyes_preview != '1' && inputs.test_send == '' && inputs.site_report != '1'
         run: |
           find cards -name '*.png' -mtime +60 -delete || true
           git add cards/ || true

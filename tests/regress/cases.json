@@ -1,0 +1,85 @@
+{
+  "_설명": "고정 시험 묶음 — 무엇을 고치든 전부 통과해야 배포(main 반영). 깨졌던 공고 + 감시 사이트별 최근 공고 1건. 새 실패를 고치면 여기에 케이스를 더한다(지우지 않는다). 값은 공고문 원본을 사람이 대조해 적은 것.",
+  "cases": [
+    {
+      "id": "sh-313647-okryu",
+      "why": "깨졌던 공고(2026-11-23): [토지임대부 사회주택] 옥류서원 — SH 첨부 PDF를 안 읽어 조건 전부 '공고문 확인'. 표 머리글이 여러 줄로 쪼개져 PDF 표 읽기 실패 → 글자 줄로 읽어야 함",
+      "source": "sh",
+      "title": "[토지임대부 사회주택] 옥류서원 입주자 모집 공고문",
+      "url": "https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/view.do?seq=313647",
+      "files": ["sh-313647-okryu.pdf"],
+      "expect": {
+        "rows": [["2F 101호", "47.28", 19000, 79], ["3F 201호", "47.28", 19400, 81]],
+        "deadline": "11/30(월)",
+        "elig_keys": ["주택", "소득", "거주", "혼인"],
+        "elig_values": {"거주": "서울시 거주자"},
+        "gate_ok": true
+      }
+    },
+    {
+      "id": "elyes-cheonho-261120",
+      "why": "깨졌던 공고(2026-11-20): 롯데 엘리스 어바니엘 천호 — 공고문이 이미지라 금액이 비어 나감(엘리스 표 칸 OCR 로 해결)",
+      "source": "elyes",
+      "files": ["../elyes_cheonho_261120.jpg"],
+      "expect": {
+        "ely_rows": [["A", 10000000, 628000]],
+        "apply_end": "2026-11-22T18:00"
+      }
+    },
+    {
+      "id": "elyes-yeomchang-261120",
+      "why": "엘리스 최근 공고(2026-11-20 어바니엘 염창) — 이미지 공고문 3행. 원본 이미지 대조값",
+      "source": "elyes",
+      "files": ["elyes-yeomchang-261120.jpg"],
+      "expect": {
+        "ely_rows": [["A2", 15000000, 698000], ["A3", 15000000, 680000], ["A4", 15000000, 664000]],
+        "apply_end": "2026-11-22T18:00"
+      }
+    },
+    {
+      "id": "soco-6806",
+      "why": "청년안심주택 최근 공고(광운대역 현대프라힐스 추가모집) — pdfplumber 가 열지 못하는 PDF(PdfminerException), 표는 '단위: 만 원' 글자 줄",
+      "source": "soco",
+      "files": ["soco-6806.pdf"],
+      "expect": {
+        "rows": [["40A", "36.12", 9700, 53]],
+        "elig_keys": ["나이", "주택"],
+        "text_method": "pdfium"
+      }
+    },
+    {
+      "id": "sh-313481",
+      "why": "SH 최근 공고([청년형] 특화형 매입임대주택(서초구)) — 일반 PDF",
+      "source": "sh",
+      "files": ["sh-313481.pdf"],
+      "expect": {
+        "rows": [["1.5룸", "36.47", 7339.5, 55.05], ["원룸", "29.55", 5964, 46.58]],
+        "deadline": "11/27",
+        "elig_keys": ["나이", "주택", "소득", "자산"]
+      }
+    },
+    {
+      "id": "hillstate-32",
+      "why": "힐스테이트 관악 뉴포레 최근 모집공고(2025-12-12) — 첨부가 javascript:download() 링크, 메뉴의 '마감재목록표' PDF 를 공고문으로 잘못 잡던 문제. 마감은 표가 발표 열과 섞여 자동으로 못 고름 → 관문이 '마감' 실패로 표시해야 함",
+      "source": "hillstate",
+      "files": ["hillstate-32.pdf"],
+      "expect": {
+        "rows": [["일반공급", "", 25100, 41.6], ["특별공급(청년)", "", 22500, 37.2]],
+        "deadline": "",
+        "elig_keys": ["주택", "소득"]
+      }
+    }
+  ],
+  "live": [
+    {"id": "sh-313647-okryu", "source": "sh", "title": "[토지임대부 사회주택] 옥류서원 입주자 모집 공고문",
+     "url": "https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/view.do?seq=313647",
+     "first_file_kind": "pdf", "first_file_name_has": "공고"},
+    {"id": "hillstate-32", "source": "hillstate", "title": "예비임차인 모집 공고(2025.12.12)",
+     "url": "https://www.hillstatenewfore.co.kr/sub/sub05_01.php?boardid=notice&mode=view&idx=32&sk=&sw=&offset=&category=",
+     "first_file_kind": "pdf", "first_file_name_has": "모집공고"}
+  ],
+  "_빠진_사이트": {
+    "마이홈": "공고 내용이 공공데이터 API 값으로 오고(첨부 없음), myhome.go.kr 은 GitHub 실행 환경에서 접속이 막힘 — 관문이 '링크 — 열리지 않음'으로 표시. 고정 파일 케이스 없음",
+    "공간지원리츠": "최근 글이 모두 추첨 결과·서류 안내(모집공고 아님, 2026-08 이후). 맥북 로컬 스크립트가 같은 reader·gate 를 씀. 모집공고가 올라오면 케이스 추가"
+  }
+}
