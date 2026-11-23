@@ -443,8 +443,8 @@ def eligibility_of(n: dict) -> list[str]:
     """공고문 글자에서 자격 조건 요약(판정 없음). 청년안심주택=공고문 PDF, SH·힐스테이트·마이홈=공고 페이지 본문.
     못 읽으면 빈 목록 → 카드에 '자격: 공고문 확인'. 같은 실행 안에서는 주소별로 한 번만 읽는다."""
     src = n.get("pdf") or n.get("url") or ""
-    if not src:
-        return []
+    if not src or n.get("source") == "myhome":
+        return []          # myhome.go.kr 은 GitHub 실행 환경에서 접속이 막힌다(2026-11-18 점검, 11/23 미리보기에서 시간 초과 재확인)
     if src in _ELIG_CACHE:
         return _ELIG_CACHE[src]
     try:
