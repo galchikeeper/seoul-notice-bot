@@ -82,6 +82,14 @@ def test_gate_skip_card_is_not_rent_failure():
     assert G.check(card, res, [{"url": "u"}]) == []
 
 
+def test_empty_columns_dropped():
+    import slack as SL
+    head, rows = SL._rows_for({"rows": [["2F 101호", "47.28", "", "-", "19,000", "79"]]})
+    assert head == ["타입", "전용㎡", "보증금(만원)", "월세(만원)"] and rows == [["2F 101호", "47.28", "19,000", "79"]]
+    head, _ = SL._rows_for({"rows": [["A", "36", "청년", "50%", "1", "2"]]})
+    assert len(head) == 6
+
+
 def test_slack_shows_gate_lines():
     import slack as SL
     c = {"top": "t", "flags": [], "rows": None, "fallback_text": "임대조건: 공고문 확인", "note": "n",

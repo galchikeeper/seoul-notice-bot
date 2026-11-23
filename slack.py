@@ -121,7 +121,11 @@ def _rows_for(c: dict) -> tuple[list[str], list[list[str]]]:
         return c["head"], c["rows"]
     if TABLE_COLS == "compact":
         return HEAD_COMPACT, [[f"{r[0]}({r[2]})" if r[2] else r[0], r[1], r[3], r[4], r[5]] for r in c["rows"]]
-    return HEAD_FULL, c["rows"]
+    # 공고문 글자 줄에서 읽은 표(예: 옥류서원)는 대상·보증금 비율 정보가 없다 — 전부 비었거나 '-' 인 열은 빼서
+    # '확인 실패' 칸이 깨진 것처럼 보이지 않게 한다(값이 하나라도 있으면 열을 남김)
+    keep = [i for i in range(len(HEAD_FULL)) if i not in (2, 3)
+            or any((r[i] or "").strip() not in ("", "-") for r in c["rows"])]
+    return [HEAD_FULL[i] for i in keep], [[r[i] for i in keep] for r in c["rows"]]
 
 
 def _num_cell(t: str) -> dict:
