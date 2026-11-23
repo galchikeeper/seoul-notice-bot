@@ -129,7 +129,7 @@ RENT_FIELDS = [            # (필드, 머리 칸 글자 패턴) — 공고마다
     ("units", r"세대수"),
     ("note", r"비고"),
 ]
-SCHED_FIELDS = [("apply", r"신청기간|기간"), ("winner", r"당첨"), ("contract", r"계약체결|체결")]
+SCHED_FIELDS = [("apply", r"신청기간|신청"), ("winner", r"당첨"), ("contract", r"계약체결|체결")]
 
 
 def _map_head(texts: list[str], fields) -> dict[str, int]:

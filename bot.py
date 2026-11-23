@@ -241,7 +241,13 @@ def collect(state: dict, today: dt.date):
         now = dt.datetime.now(KST).replace(tzinfo=None)
         if now.date() != today:                       # 시험에서 today 를 바꾼 경우
             now = dt.datetime.combine(today, dt.time(12, 0))
-        news[:] = [e for e in (elyes_enrich(n, now) if n.get("source") == "elyes" else n for n in news) if e]
+        def _safe_enrich(n):                          # OCR 중 예외가 나도 이미지 없이 제목 마감만으로 처리
+            try:
+                return elyes_enrich(n, now)
+            except Exception as ex:
+                errors.append(f"엘리스 공고문 읽기 실패({type(ex).__name__}) — 제목 마감만 사용")
+                return elyes_enrich({**n, "images": []}, now)
+        news[:] = [e for e in (_safe_enrich(n) if n.get("source") == "elyes" else n for n in news) if e]
     except Exception as e:
         errors.append(f"롯데 엘리스 확인 실패: {type(e).__name__}")
 
