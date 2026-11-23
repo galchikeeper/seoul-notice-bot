@@ -46,6 +46,8 @@ class Parse(unittest.TestCase):
     def test_money(self):
         self.assertEqual(OCR.money("10,000,000"), 10_000_000)
         self.assertEqual(OCR.money("1,500 만"), 15_000_000)
+        self.assertEqual(OCR.money("1.500만"), 15_000_000)               # GitHub(우분투) tesseract 가 읽은 그대로
+        self.assertEqual(OCR.money("10.000.000"), 10_000_000)
         self.assertEqual(OCR.money("1억 9,900만"), 199_000_000)
         self.assertIsNone(OCR.money("주의사항 필독"))
 

@@ -145,7 +145,7 @@ def _map_head(texts: list[str], fields) -> dict[str, int]:
 
 def money(s: str) -> int | None:
     """'10,000,000' → 10000000 · '1,500만' → 15000000 · '1억 9,900만' → 199000000 (원)."""
-    t = _nospace(s)
+    t = re.sub(r"(?<=\d)\.(?=\d{3}(?!\d))", ",", _nospace(s))     # OCR 이 쉼표를 마침표로 읽는다: '1.500만'
     m = re.fullmatch(r"(?:(\d+)억)?(?:([\d,]+)만)?원?", t)
     if m and (m.group(1) or m.group(2)):
         return int(m.group(1) or 0) * 100_000_000 + int((m.group(2) or "0").replace(",", "")) * 10_000
