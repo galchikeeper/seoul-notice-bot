@@ -153,11 +153,18 @@ def money(s: str) -> int | None:
     return int(v) if v and re.fullmatch(r"[\d,]+원?", t) else None
 
 
+RAW: list[str] = []          # 검증 실패 때 로그로 남길 금액 칸 원문(공개 공고문 숫자뿐)
+
+
 def read_money(im, box) -> int | None:
     """숫자 전용으로 먼저 읽고, 값이 이상하면('1,500만'처럼 한글 단위) 한글 포함으로 다시 읽는다."""
-    v = money(read_cell(im, box, "money"))
+    a = read_cell(im, box, "money")
+    v = money(a)
+    b = ""
     if v is None or v < 10_000 or v % 100:
-        v = money(read_cell(im, box, "text"))
+        b = read_cell(im, box, "text")
+        v = money(b)
+    RAW.append(f"{a!r}→{b!r}" if b else repr(a))
     return v
 
 
@@ -261,6 +268,7 @@ def read_images(images: list[bytes]) -> dict:
     if not available():
         out["errors"].append("tesseract 없음")
         return out
+    RAW.clear()
     for b in images:
         try:
             im = Image.open(io.BytesIO(b)).convert("L")
@@ -291,7 +299,7 @@ def read_images(images: list[bytes]) -> dict:
     if not out["rows"]:
         out["errors"].append("임대조건 표 못 읽음")
     elif not all(plausible(r) for r in out["rows"]):
-        out["errors"].append("임대조건 값 검증 실패")
+        out["errors"].append("임대조건 값 검증 실패 — 읽은 금액 칸: " + ", ".join(RAW)[:200])
     if out["apply"][1] is None:
         out["errors"].append("신청기간 못 읽음")
     return out
