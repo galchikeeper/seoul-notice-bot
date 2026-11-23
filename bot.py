@@ -451,7 +451,7 @@ def eligibility_of(n: dict) -> list[str]:
         text = ELIG.pdf_text(src) if n.get("pdf") else ELIG.html_text(src)
         items = ELIG.summarize(text)
         if items and not n.get("pdf"):
-            items.append("그 밖은 공고문 확인")     # 페이지 본문은 공고문 일부만 담고 있다
+            items.append(ELIG.MORE)                 # 페이지 본문은 공고문 일부만 담고 있다
     except Exception as e:
         print(f"자격: 읽기 실패 {str(n.get('board_id') or '')[:20]} ({type(e).__name__})")
         items = []
@@ -555,14 +555,15 @@ def elyes_slack_item(n: dict) -> dict:
         head, rows, fallback = None, None, "타입·보증금·월세: 공고문 확인"
     if sched:
         fallback += "\n" + sched
-    notes = sorted({r["note"] for r in src if r.get("note")})
+    # 비고 중 자격 칸에 이미 들어간 것(예: '여성만 입주가능' → 성별 여성만, '청년 일반 공급' → 공급 일반)은 빼서 중복을 없앤다
+    notes = sorted({r["note"] for r in src if r.get("note") and not ELIG.summarize(" ".join([r["note"]] * 6))})
     note = " · ".join(x for x in [
         "단위: 만원" if rows else "", sched or "신청 일정: 공고문 확인",
         ("비고 " + ", ".join(notes)) if notes else "",
         f"전용 {MIN_AREA:g}㎡ 미만 {dropped}개 타입 제외" if dropped and not skip else "",
         ] if x)
     return {"top": top, "flags": flags, "rows": rows, "head": head, "money_cols": [1, 2],
-            "elig": ELIG.line(n.get("elig") or []),
+            "elig": ELIG.line(n.get("elig") or []), "elig_items": list(n.get("elig") or []),
             "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
             "urgent": urgent, "skip": skip, "dropped_types": dropped,
             "notice_url": n["url"], "apply_url": "",
@@ -613,15 +614,18 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     if rows and kept and not complete:
         rows.append(["확인 실패"] * 6)                                   # 읽지 못한 표가 더 있음
     kind = kind_of(title) if title else "모집공고"
-    note = f"단위: 만원 · 보증금 비율마다 한 행 · {kind}"
+    note = f"단위: 만원 · 보증금 비율마다 한 행 · {kind}" if rows else kind     # 표가 없으면 단위 설명은 군더더기
     if not complete and types:
         note += " · 일부 표를 읽지 못함(공고문 확인)"
     if len(kept) < len(types) and not skip:
         note += f" · 전용 {MIN_AREA:g}㎡ 미만 {len(types) - len(kept)}개 타입 제외"
     if "elig" not in n and fetch_pdf:
         n = {**n, "elig": eligibility_of(n)}
+    elig = list(n.get("elig") or [])
+    if kept:                                       # 표의 '대상' 열에 특별/일반이 이미 있다 — 같은 말을 두 번 쓰지 않는다
+        elig = [x for x in elig if x[0] != "공급"]
     return {"top": top, "flags": ["📐 면적 확인 필요"] if area_unknown else [],
-            "elig": ELIG.line(n.get("elig") or []),
+            "elig": ELIG.line(elig), "elig_items": elig,
             "rows": rows, "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
             "urgent": urgent, "skip": skip, "dropped_types": len(types) - len(kept),
             "notice_url": n["url"], "apply_url": _apply_url(n),
@@ -739,7 +743,8 @@ def elyes_preview(days: int = 4) -> int:
                 print("  | " + " | ".join(r) + " |")
         else:
             print("  " + c["fallback_text"])
-        print(f"  👤 {c['elig']}\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
+        print("  👤 자격\n" + "\n".join("    │ " + x for x in ELIG.box_lines(c["elig_items"]) or ["공고문 확인"])
+              + f"\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
     _preview_others(dt.datetime.now(KST).replace(tzinfo=None))   # 다른 출처는 지금 기준
     if os.environ.get("PREVIEW_SEND") == "1":
         return preview_send(now)
@@ -753,10 +758,10 @@ def preview_send(now: dt.datetime) -> int:
     if not slk:
         print("시험 발송: SLACK_WEBHOOK_URL 없음 — 보내지 않음")
         return 1
-    ok_elig = lambda c: not c["elig"].endswith("공고문 확인") or "·" in c["elig"]
+    ok_elig = lambda c: bool(c.get("elig_items"))
     pick = [c for src, c in PREVIEW_CARDS if src == "엘리스"][:2]
     soco = [c for src, c in PREVIEW_CARDS if src == "청년안심주택" and ok_elig(c)]
-    pick += sorted(soco, key=lambda c: -len(c["elig"]))[:1]
+    pick += sorted(soco, key=lambda c: -len(c["elig_items"]))[:1]
     pick += [c for src, c in PREVIEW_CARDS if src == "SH" and ok_elig(c)][:1]
     head = (f"🧪 *시험 발송* — 카드 형식 확인용, 실제 알림 아님 · 상태 파일 변경 없음 · {len(pick)}건\n"
             f"엘리스 카드는 {now:%m/%d %H:%M} 에 돌았다고 친 재현이라 마감·D-day 가 그 시각 기준입니다.")
@@ -777,7 +782,8 @@ def _print_card(label: str, c: dict) -> None:
             print("  | " + " | ".join(str(x) for x in r) + " |")
     else:
         print("  " + c["fallback_text"])
-    print(f"  👤 {c['elig']}\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
+    print("  👤 자격\n" + "\n".join("    │ " + x for x in ELIG.box_lines(c["elig_items"]) or ["공고문 확인"])
+          + f"\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
 
 
 def _preview_others(now: dt.datetime) -> None:

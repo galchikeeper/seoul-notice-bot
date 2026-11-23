@@ -25,33 +25,41 @@ class T(unittest.TestCase):
     def test_soco(self):
         got = E.summarize(SOCO)
         self.assertEqual(got, [
-            "나이 19~39세", "무주택(세대원 전부)", "소득 기준 있음(금액은 공고문)",
-            "자산 기준: 청년 30~39세 가구 기준, 신혼 소득3분위 기준(금액은 공고문)",
-            "차량가액 4,542만 원 이하", "거주지 1순위: 광진구 거주자 (소득이 같을 때)",
-            "공급: 특별·일반", "반려동물 불가"])
+            ("나이", "19~39세"), ("주택", "무주택 (세대원 전부)"), ("소득", "기준 있음*"),
+            ("자산", "청년 30~39세 가구 · 신혼 소득3분위 기준*"), ("차량", "4,542만 원 이하"),
+            ("거주", "1순위 광진구 (소득 같을 때)"), ("공급", "특별·일반"), ("불가", "반려동물")])
         # '임대사업자 … 대출 불가 시', '대출이 불가능 또는 일부 제한' 은 규정이 아니므로 넣지 않는다
-        self.assertNotIn("대출 불가", got)
-        self.assertFalse(any("사업자" in x for x in got))
+        self.assertNotIn("대출", dict(got))
+        self.assertNotIn("사업자", dict(got)["불가"])
+        # 네모 칸: 한 줄에 한 항목, '금액은 공고문'은 맨 아래 각주 한 번만
+        box = E.box_lines(got)
+        self.assertEqual(box[0], "나이  19~39세")
+        self.assertEqual(box[-1], "* 금액은 공고문 참고")
+        self.assertEqual(sum("공고문" in x for x in box), 1)
 
     def test_elyes_ocr(self):
         self.assertEqual(E.summarize(ELYES), [
-            "나이 만19~39세", "무주택", "차량가액 4,542만 원 이하", "계약일부터 1개월 이내 입주",
-            "법인·외국인 불가", "대출 불가"])
+            ("나이", "만19~39세"), ("주택", "무주택"), ("차량", "4,542만 원 이하"), ("입주", "계약 후 1개월 이내"),
+            ("불가", "법인·외국인"), ("대출", "불가")])
 
     def test_newlywed(self):
         one = "신혼부부(예비신혼부부 포함)는 1세대로 간주하여 부부(예비부부) 중 1명이 대표로 1건만 신청이 가능하고"
-        self.assertIn("신혼부부(예비 포함)는 1세대로 간주(1건만 신청)", E.summarize(one))
+        self.assertIn(("혼인", "신혼부부(예비 포함) 1세대 간주 · 1건만 신청"), E.summarize(one))
         intro = "■ 청년안심주택 공공지원민간임대는 무주택 청년 및 신혼부부의 주거안정을 위하여 공공의 지원을 받아"
-        self.assertFalse(any("신혼" in x for x in E.summarize(intro)))      # 소개 문구는 자격이 아니다
+        self.assertNotIn("혼인", dict(E.summarize(intro)))      # 소개 문구는 자격이 아니다
 
     def test_nothing(self):
         self.assertEqual(E.summarize("공지사항 목록 1 2 3 리빙가이드북"), [])
         self.assertEqual(E.line([]), "자격: 공고문 확인")
+        self.assertEqual(E.box_lines([]), [])
+
+    def test_more_note(self):
+        self.assertEqual(E.box_lines([("주택", "무주택"), E.MORE]), ["주택  무주택", "※ 그 밖은 공고문 확인"])
 
     def test_income_asset_amounts(self):
-        got = E.summarize("도시근로자 가구당 월평균소득의 100% 이하, 신혼부부는 월평균소득 120% 이하. 총자산 3억4,500만원 이하인 자")
-        self.assertIn("소득 월평균소득 100%·120% 이하 (유형별)", got)
-        self.assertIn("자산 3억 4,500만 원 이하", got)
+        got = dict(E.summarize("도시근로자 가구당 월평균소득의 100% 이하, 신혼부부는 월평균소득 120% 이하. 총자산 3억4,500만원 이하인 자"))
+        self.assertEqual(got["소득"], "월평균 100%·120% 이하 (유형별)")
+        self.assertEqual(got["자산"], "3억 4,500만 원 이하")
 
 
 if __name__ == "__main__":

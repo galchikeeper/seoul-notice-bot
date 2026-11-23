@@ -142,15 +142,33 @@ def table_block(c: dict, mode: str) -> dict:
                                                           for i in range(1, len(head))]}
 
 
+def elig_lines(c: dict) -> str:
+    import eligibility as E
+    rows = E.box_lines(c.get("elig_items") or [])
+    return "\n".join(_esc(x) for x in rows) if rows else "자격  공고문 확인"
+
+
+def elig_box(c: dict) -> str:
+    """자격 조건 네모 칸(코드 블록) — 한 줄에 한 항목, 위에서 아래로. 판정 없이 공고문에 보이는 것만."""
+    if "elig_items" not in c and not c.get("elig"):
+        return ""
+    if not c.get("elig_items"):
+        return "*👤 자격*  공고문 확인"
+    return f"*👤 자격*\n```{elig_lines(c)}```"
+
+
 def notice_blocks(c: dict, mode: str) -> list[dict]:
     top = "\n".join([*c.get("flags", []), f"*{_esc(c['top'])}*"])
     blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": top[:2900]}}]
+    elig = elig_box(c)
     if c.get("rows") and mode in ("data_table", "table"):
         blocks.append(table_block(c, mode))
-    else:
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": _esc(c["fallback_text"])[:2900]}})
-    if c.get("elig"):                       # 자격 조건 요약(판정 없음) — 공고문에 보이는 것만
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "👤 " + _esc(c["elig"])[:2900]}})
+        if elig:                            # 임대조건 표 바로 아래에 자격 칸을 붙인다
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": elig[:2900]}})
+    else:                                   # 표가 없으면 임대조건 줄과 자격을 한 칸에
+        rent = "\n".join(_esc(x) for x in c["fallback_text"].split("\n"))
+        body = f"*🏠 임대조건 · 👤 자격*\n```{rent}\n\n{elig_lines(c)}```" if elig else rent
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body[:2900]}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(c["note"])[:2900]}]})
     blocks.append(card_blocks({**c, "title": "", "summary": "", "meta": ""}, 0)[2])   # [공고 보기] [신청하기]
     return blocks

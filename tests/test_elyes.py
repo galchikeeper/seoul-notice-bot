@@ -110,6 +110,30 @@ class Enrich(unittest.TestCase):
                 self.assertIn("A · 보증금 1,000만 · 월 62.8만 · 10층 남향 도생", b[1]["text"]["text"])
 
 
+class EligBox(unittest.TestCase):
+    def test_box_under_table_and_combined(self):
+        rows = [{"type": "A", "deposit": 10_000_000, "rent": 628_000}]
+        n = {**notice("[어바니엘 천호] 공실세대 모집공고 (접수기간: 11/20~11/22)"), "ely_rows": rows,
+             "deadline": "11/22(일)", "elig": [("입주", "12/27까지 가능해야 함"), ("불가", "법인·외국인")]}
+        c = bot.slack_item(n, dt.date(2026, 11, 21))
+        b = SL.notice_blocks(c, "data_table")
+        self.assertEqual([x["type"] for x in b], ["section", "data_table", "section", "context", "actions"])
+        self.assertEqual(b[2]["text"]["text"], "*👤 자격*\n```입주  12/27까지 가능해야 함\n불가  법인·외국인```")
+        t = SL.notice_blocks(c, "text")[1]["text"]["text"]        # 표를 못 보내면 임대조건·자격을 한 칸에
+        self.assertTrue(t.startswith("*🏠 임대조건 · 👤 자격*\n```A · 보증금 1,000만 · 월 62.8만"))
+        self.assertIn("불가  법인·외국인```", t)
+        c2 = bot.slack_item({**n, "elig": []}, dt.date(2026, 11, 21))
+        self.assertEqual(SL.notice_blocks(c2, "data_table")[2]["text"]["text"], "*👤 자격*  공고문 확인")
+
+    def test_note_dedup(self):                      # 비고 '여성만 입주가능'은 자격 칸(성별 여성만)과 겹쳐서 뺀다
+        rows = [{"type": "B", "deposit": 15_000_000, "rent": 690_000, "note": "여성만입주가능"}]
+        n = {**notice("[어바니엘 한강] 공실세대 모집공고 (접수기간: 11/20~11/22)"), "ely_rows": rows,
+             "deadline": "11/22(일)", "elig": [("성별", "여성만")]}
+        self.assertNotIn("비고", bot.slack_item(n, dt.date(2026, 11, 21))["note"])
+        n2 = {**n, "ely_rows": [{**rows[0], "note": "청년일반공급"}], "elig": [("공급", "일반")]}
+        self.assertNotIn("비고", bot.slack_item(n2, dt.date(2026, 11, 21))["note"])
+
+
 @unittest.skipUnless(OCR.available(), "tesseract 없음")
 class ReadImage(unittest.TestCase):
     def test_cheonho(self):                       # 어바니엘 천호 2026-11-20 공고문 이미지
