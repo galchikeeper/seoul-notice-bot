@@ -22,7 +22,7 @@ on:
         required: false
         default: "0"
       elyes_preview:
-        description: "엘리스 미리보기 — 1이면 최근 4일 엘리스 글의 카드를 로그에만 찍음 (발송·상태 변경 없음)"
+        description: "카드 미리보기 — 1이면 최근 4일 엘리스 글 + 접수 중 청년안심주택·마이홈·SH 카드를 로그에만 찍음 (발송·상태 변경 없음)"
         required: false
         default: "0"
       preview_at:

@@ -15,6 +15,7 @@ from pathlib import Path
 import sources as S
 import myhome as MH
 import elyes_ocr as OCR
+import eligibility as ELIG
 from pdfparse import fetch_types, type_lines, fmt_num
 from card import render
 from kakao import Kakao, update_github_secret
@@ -433,6 +434,31 @@ def _area_val(t: dict) -> float | None:
         return None
 
 
+# ─────────────────────────── 자격 조건 ───────────────────────────
+
+_ELIG_CACHE: dict[str, list[str]] = {}
+
+
+def eligibility_of(n: dict) -> list[str]:
+    """공고문 글자에서 자격 조건 요약(판정 없음). 청년안심주택=공고문 PDF, SH·힐스테이트·마이홈=공고 페이지 본문.
+    못 읽으면 빈 목록 → 카드에 '자격: 공고문 확인'. 같은 실행 안에서는 주소별로 한 번만 읽는다."""
+    src = n.get("pdf") or n.get("url") or ""
+    if not src:
+        return []
+    if src in _ELIG_CACHE:
+        return _ELIG_CACHE[src]
+    try:
+        text = ELIG.pdf_text(src) if n.get("pdf") else ELIG.html_text(src)
+        items = ELIG.summarize(text)
+        if items and not n.get("pdf"):
+            items.append("그 밖은 공고문 확인")     # 페이지 본문은 공고문 일부만 담고 있다
+    except Exception as e:
+        print(f"자격: 읽기 실패 {str(n.get('board_id') or '')[:20]} ({type(e).__name__})")
+        items = []
+    _ELIG_CACHE[src] = items
+    return items
+
+
 # ─────────────────────────── 롯데 엘리스 ───────────────────────────
 
 def _md(d: dt.datetime, with_time: bool = True) -> str:
@@ -463,6 +489,11 @@ def elyes_enrich(n: dict, now: dt.datetime, images: list[bytes] | None = None) -
         return None
     rows = r["rows"] if r["rows"] and all(OCR.plausible(x) for x in r["rows"]) else []
     m = dict(n)
+    try:                                   # 자격: 공고문 이미지 본문(표 밖 글자) + 표 비고 칸
+        m["elig"] = ELIG.summarize(ELIG.image_text(images) + "\n" + " ".join(x.get("note", "") for x in r["rows"]))
+    except Exception as e:
+        print(f"elyes: 자격 읽기 실패 ({type(e).__name__})")
+        m["elig"] = []
     m["ely_rows"] = rows
     m["ely_sched"] = {"apply": r["apply"] if r["apply"][1] else (None, end), "winner": r["winner"],
                       "contract": r["contract"]}
@@ -529,8 +560,9 @@ def elyes_slack_item(n: dict) -> dict:
         "단위: 만원" if rows else "", sched or "신청 일정: 공고문 확인",
         ("비고 " + ", ".join(notes)) if notes else "",
         f"전용 {MIN_AREA:g}㎡ 미만 {dropped}개 타입 제외" if dropped and not skip else "",
-        "자격·입주조건 공고문 확인"] if x)
+        ] if x)
     return {"top": top, "flags": flags, "rows": rows, "head": head, "money_cols": [1, 2],
+            "elig": ELIG.line(n.get("elig") or []),
             "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
             "urgent": urgent, "skip": skip, "dropped_types": dropped,
             "notice_url": n["url"], "apply_url": "",
@@ -581,12 +613,15 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     if rows and kept and not complete:
         rows.append(["확인 실패"] * 6)                                   # 읽지 못한 표가 더 있음
     kind = kind_of(title) if title else "모집공고"
-    note = f"단위: 만원 · 보증금 비율마다 한 행 · {kind} · 자격 공고문 확인"
+    note = f"단위: 만원 · 보증금 비율마다 한 행 · {kind}"
     if not complete and types:
         note += " · 일부 표를 읽지 못함(공고문 확인)"
     if len(kept) < len(types) and not skip:
         note += f" · 전용 {MIN_AREA:g}㎡ 미만 {len(types) - len(kept)}개 타입 제외"
+    if "elig" not in n and fetch_pdf:
+        n = {**n, "elig": eligibility_of(n)}
     return {"top": top, "flags": ["📐 면적 확인 필요"] if area_unknown else [],
+            "elig": ELIG.line(n.get("elig") or []),
             "rows": rows, "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
             "urgent": urgent, "skip": skip, "dropped_types": len(types) - len(kept),
             "notice_url": n["url"], "apply_url": _apply_url(n),
@@ -700,8 +735,46 @@ def elyes_preview(days: int = 4) -> int:
                 print("  | " + " | ".join(r) + " |")
         else:
             print("  " + c["fallback_text"])
-        print(f"  {c['note']}\n  [공고 보기] {c['notice_url']}")
+        print(f"  👤 {c['elig']}\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
+    _preview_others(dt.datetime.now(KST).replace(tzinfo=None))   # 다른 출처는 지금 기준
     return 0
+
+
+def _print_card(label: str, c: dict) -> None:
+    print(f"\n[{label}]\n  " + "\n  ".join(c["flags"] + [c["top"]]))
+    if c["rows"]:
+        head = c.get("head") or ["타입", "전용㎡", "대상", "보증금 비율", "보증금(만원)", "월세(만원)"]
+        for r in [head] + c["rows"][:6]:
+            print("  | " + " | ".join(str(x) for x in r) + " |")
+    else:
+        print("  " + c["fallback_text"])
+    print(f"  👤 {c['elig']}\n  {c['note']}\n  [공고 보기] {c['notice_url']}")
+
+
+def _preview_others(now: dt.datetime) -> None:
+    """미리보기 2부: 다른 출처 카드(자격 줄 확인용). 청년안심주택=접수 중 목록, 마이홈·SH=지금 목록의 조건 맞는 글."""
+    today = now.date()
+    print("\n\n===== 청년안심주택 (접수 중 공고) =====")
+    for r in load_state().get("tracking", []):
+        _print_card("청년안심주택", slack_item(r, today))
+    if os.environ.get("MYHOME_API_KEY", "").strip():
+        print("\n\n===== 마이홈 (범위 안 공고) =====")
+        try:
+            for x in [x for x in MH.fetch_notices(today, log=lambda *_: None) if S.mine(x["title"])][:6]:
+                n = {"source": "myhome", "title": f"마이홈 — {x['title']}", "name": x["title"][:40],
+                     "deadline": x["deadline"] or "", "days_left": x["days_left"], "types": x["types"],
+                     "types_complete": True, "url": x["url"], "apply_url": x["url"], "pdf": None}
+                _print_card("마이홈", slack_item(n, today))
+        except Exception as e:
+            print(f"마이홈 미리보기 실패: {MH.redact(str(e))[:60]}")
+    print("\n\n===== SH (지금 목록의 조건 맞는 글) =====")
+    try:
+        for x in [x for x in S.fetch_sh(1) if x["mine"]][:3]:
+            n = {"source": "sh", "title": f"SH — {x['title']}", "name": x["title"][:40], "deadline": "",
+                 "url": x["url"], "pdf": None, "types": []}
+            _print_card("SH", slack_item(n, today))
+    except Exception as e:
+        print(f"SH 미리보기 실패: {type(e).__name__}")
 
 
 def main() -> int:

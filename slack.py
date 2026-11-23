@@ -149,6 +149,8 @@ def notice_blocks(c: dict, mode: str) -> list[dict]:
         blocks.append(table_block(c, mode))
     else:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": _esc(c["fallback_text"])[:2900]}})
+    if c.get("elig"):                       # 자격 조건 요약(판정 없음) — 공고문에 보이는 것만
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "👤 " + _esc(c["elig"])[:2900]}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(c["note"])[:2900]}]})
     blocks.append(card_blocks({**c, "title": "", "summary": "", "meta": ""}, 0)[2])   # [공고 보기] [신청하기]
     return blocks
