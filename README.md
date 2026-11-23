@@ -28,6 +28,14 @@
 마이홈포털은 robots 정책으로 접근이 막혀 제외했다. 여기 뜨는 서울 공고는
 결국 단지 홈페이지에도 올라오므로 실질 공백은 거의 없다.
 
+## 오류 대비 구조 (2026-11-23)
+- **공고 읽기는 한 길**(`reader.py`): 공고 페이지 → 첨부(PDF·HWP·HWPX·이미지·DOCX) 받기 → 글자 추출(PDF 글자 → pdfium → 그림 OCR / HWP 본문 / 이미지 OCR) → 임대조건·자격·마감. 출처마다 다른 건 `attachments()` 하나뿐.
+- **보내기 전 관문**(`gate.py`): 카드마다 링크·조건·공고문 파일 점검. 실패면 간격 두고 3회 → 다른 방법 → 그래도 안 되면 카드에 `⚠️ 자동 점검 실패 — 무엇 — 왜`를 달고 보냄. 실패는 `failures.jsonl` 에 쌓임.
+- **공고문 사본**(`archive.py`): 릴리스 `notice-files` 에 올리고 카드에 `📎 공고문 사본` 버튼. 비밀값 `SLACK_BOT_TOKEN`·`SLACK_CHANNEL_ID` 를 넣으면 카드 스레드에 파일도 올림(미검증).
+- **배포는 `./deploy.sh` 로만**: `fix/` 가지 → Actions `시험 묶음`(tests 전체 + `tests/regress/cases.json` + 실제 사이트 접속) 전부 통과일 때만 main 반영, 실패면 슬랙 #알림 🔴.
+- 수동 실행: `test_send=sh:313647`(1건 시험 발송), `site_report=1`(사이트 전체 점검표).
+- 해결 에이전트: 맥 데스크톱 앱 예약 작업 `housing-fix-agent`(매일 15:10) — 지시문 galchi-automations/tasks/housing-fix-agent.md
+
 ## 파일
 
 | 파일 | 역할 |
