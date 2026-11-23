@@ -143,38 +143,40 @@ def table_block(c: dict, mode: str) -> dict:
                                                           for i in range(1, len(head))]}
 
 
-def elig_lines(c: dict) -> str:
+ELIG_SPLIT = os.environ.get("ELIG_SPLIT", "0") == "1"   # 1이면 '소득·자산·차량' 행을 '소득' / '자산·차량' 두 행으로
+
+
+def _elig_rows(c: dict) -> list[tuple[str, str]]:
     import eligibility as E
-    rows = E.box_lines(c.get("elig_items") or [])
-    return "\n".join(_esc(x) for x in rows) if rows else "자격  공고문 확인"
+    rows = E.table_rows(c.get("elig_items") or [])
+    return E.split_money(rows) if ELIG_SPLIT else rows
+
+
+def elig_lines(c: dict) -> str:
+    rows = _elig_rows(c)
+    return "\n".join(_esc(f"{k}  {v}" if k != "※" else f"※ {v}") for k, v in rows) if rows else "자격  공고문 확인"
 
 
 def elig_box(c: dict) -> str:
-    """자격 조건 네모 칸(코드 블록) — 한 줄에 한 항목, 위에서 아래로. 판정 없이 공고문에 보이는 것만."""
-    if "elig_items" not in c and not c.get("elig"):
-        return ""
+    """예비 형식: 자격 네모 칸(코드 블록). 슬랙이 표 두 개를 거절할 때만 쓴다."""
     if not c.get("elig_items"):
         return "*👤 자격*  공고문 확인"
     return f"*👤 자격*\n```{elig_lines(c)}```"
 
 
-def elig_table(c: dict, mode: str) -> dict:
-    """자격 조건 2열 표(항목 | 내용). 판정 없이 공고문에 보이는 것만, 중요한 순서대로."""
-    import eligibility as E
-    rows = E.table_rows(c["elig_items"])
+def elig_table(c: dict) -> dict:
+    """자격 2열 표(자격 | 내용). 내용 열은 줄바꿈(is_wrapped) — 칸 안 글이 '…'로 잘리지 않게."""
     cells = [[{"type": "raw_text", "text": h} for h in ("자격", "내용")]]
-    cells += [[{"type": "raw_text", "text": k}, {"type": "raw_text", "text": v}] for k, v in rows]
-    if mode == "data_table":
-        return {"type": "data_table", "caption": "자격 조건", "rows": cells, "page_size": max(1, min(len(rows), 30))}
-    return {"type": "table", "rows": cells, "column_settings": [None, {"is_wrapped": True}]}
+    cells += [[{"type": "raw_text", "text": k}, {"type": "raw_text", "text": v}] for k, v in _elig_rows(c)]
+    return {"type": "table", "rows": cells, "column_settings": [{"is_wrapped": True}, {"is_wrapped": True}]}
 
 
 def notice_blocks(c: dict, mode: str, elig_style: str = "box") -> list[dict]:
-    """mode: 임대조건 표 형식(data_table/table/text). elig_style: 자격을 표(table)로 붙일지 네모 칸(box)으로 붙일지."""
+    """mode: 임대조건 표 형식(data_table/table/text). elig_style: 자격을 표(table)로 붙일지 네모 칸(box)으로 붙일지.
+    임대조건 표와 자격 표 사이에는 다른 블록을 넣지 않는다."""
     top = "\n".join([*c.get("flags", []), f"*{_esc(c['top'])}*"])
     blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": top[:2900]}}]
     has_elig = "elig_items" in c or bool(c.get("elig"))
-    tmode = mode if mode in ("data_table", "table") else "table"
     if c.get("rows") and mode in ("data_table", "table"):
         blocks.append(table_block(c, mode))
     else:
@@ -184,8 +186,8 @@ def notice_blocks(c: dict, mode: str, elig_style: str = "box") -> list[dict]:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": rent[:2900]}})
     if has_elig and not c.get("elig_items"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*👤 자격*  공고문 확인"}})
-    elif has_elig and elig_style.endswith("table"):        # 임대조건 표 바로 아래에 자격 표
-        blocks.append(elig_table(c, elig_style.split(":")[0] if ":" in elig_style else tmode))
+    elif has_elig and elig_style == "table":              # 임대조건 표 바로 아래에 자격 표
+        blocks.append(elig_table(c))
     elif has_elig and c.get("rows") and mode in ("data_table", "table"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": elig_box(c)[:2900]}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(c["note"])[:2900]}]})
@@ -202,7 +204,7 @@ def _send_notice(self, c: dict) -> bool:
             order = [x for x in order if ("data_table", "table", "text").index(x[0])
                      >= ("data_table", "table", "text").index(self.table_mode)]
     else:
-        order = [("text", "data_table:table"), ("text", "table:table"), ("text", "box")]
+        order = [("text", "table"), ("text", "box")]
     if self.elig_mode == "box" or not c.get("elig_items"):     # 자격 항목이 없으면 표/칸 구분이 의미 없다
         order = [x for x in order if x[1] == "box"]
     for mode, est in order:

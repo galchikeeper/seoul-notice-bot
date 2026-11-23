@@ -34,7 +34,8 @@ class T(unittest.TestCase):
 
     def test_pdf_fail_not_filled(self):
         c = bot.slack_item(n([], pdf="x.pdf"), TODAY, fetch_pdf=False)
-        self.assertEqual(c["rows"], [["확인 실패"] * 6])
+        self.assertIsNone(c["rows"])                         # '확인 실패'만 찬 표 대신 한 줄
+        self.assertEqual(c["fallback_text"], "임대조건: 공고문 확인")
         self.assertIn("📐 면적 확인 필요", c["flags"])
 
     def test_urgent_top_line(self):
@@ -52,7 +53,8 @@ class Partial(unittest.TestCase):
         c = bot.slack_item(x, TODAY, fetch_pdf=False)
         self.assertFalse(c["skip"])
         self.assertIn("📐 면적 확인 필요", c["flags"])
-        self.assertEqual(c["rows"], [["확인 실패"] * 6])
+        self.assertIsNone(c["rows"])
+        self.assertEqual(c["fallback_text"], "임대조건: 공고문 확인")
 
 
 class Send(unittest.TestCase):

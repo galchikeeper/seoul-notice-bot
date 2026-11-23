@@ -552,7 +552,7 @@ def elyes_slack_item(n: dict) -> dict:
             r["type"] or "타입 확인 실패", f"보증금 {_man(r['deposit'])}만", f"월 {_man(r['rent'])}만",
             " ".join(x for x in (r.get("floor"), r.get("dir"), r.get("use")) if x)] if x) for r in src)
     else:
-        head, rows, fallback = None, None, "타입·보증금·월세: 공고문 확인"
+        head, rows, fallback = None, None, "임대조건: 공고문 확인"
     if sched:
         fallback += "\n" + sched
     # 비고 중 자격 칸에 이미 들어간 것(예: '여성만 입주가능' → 성별 여성만, '청년 일반 공급' → 공급 일반)은 빼서 중복을 없앤다
@@ -605,11 +605,11 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
                  fmt_num(p["deposit"]), fmt_num(p["rent"])] for t in kept for p in t["prices"]]
         fallback = type_lines(kept)
     elif n.get("pdf"):
-        rows = [["확인 실패"] * 6]                                        # 표를 못 읽음 — 채우지 않는다
-        fallback = "평형·보증금·월세: 확인 실패 (공고문 확인)"
+        rows = None                    # 표를 못 읽음 — '확인 실패'만 찬 표 대신 한 줄(2026-11-23 사용자 지시)
+        fallback = "임대조건: 공고문 확인"
     else:
         rows = None                                                      # PDF 가 없는 출처(힐스테이트·SH·엘리스 등)
-        fallback = "평형·보증금·월세: 공고문 확인"
+        fallback = "임대조건: 공고문 확인"
 
     if rows and kept and not complete:
         rows.append(["확인 실패"] * 6)                                   # 읽지 못한 표가 더 있음
@@ -622,8 +622,6 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     if "elig" not in n and fetch_pdf:
         n = {**n, "elig": eligibility_of(n)}
     elig = list(n.get("elig") or [])
-    if kept:                                       # 표의 '대상' 열에 특별/일반이 이미 있다 — 같은 말을 두 번 쓰지 않는다
-        elig = [x for x in elig if x[0] != "공급"]
     return {"top": top, "flags": ["📐 면적 확인 필요"] if area_unknown else [],
             "elig": ELIG.line(elig), "elig_items": elig,
             "rows": rows, "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,

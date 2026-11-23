@@ -30,7 +30,13 @@ def _money(s: str) -> str:
     return s.replace("만원", "만 원").replace("억", "억 ")
 
 
-STD = "기준 있음*"          # 금액이 표에만 있어 값을 못 옮긴 경우 — 칸 아래 각주 '* 금액은 공고문'
+STD = "공고문 참고"        # 기준은 있는데 금액을 못 읽은 경우
+
+
+def _eok(won: int) -> str:
+    """251000000 → '2억 5,100만' · 45420000 → '4,542만'."""
+    e, m = divmod(won // 10_000, 10_000)
+    return " ".join(x for x in (f"{e}억" if e else "", f"{m:,}만" if m else "") if x) or "0"
 
 
 def summarize(text: str) -> list[tuple[str, str]]:
@@ -53,13 +59,18 @@ def summarize(text: str) -> list[tuple[str, str]]:
     # 주택
     if re.search(r"무주택(?:요건|자|세대|청년|조건|이어야|여야)|주택을소유하지않", t):
         whole = re.search(r"세대원(?:전부|모두)[는은가이]?무주택", t)
-        out.append(("주택", "무주택" + (" (세대원 전부)" if whole else "")))
+        out.append(("주택", "무주택" + ("(세대원 전부)" if whole else "")))
 
     # 소득 — '월평균소득 100%' 들
     inc = _uniq(m.group(1) for m in re.finditer(r"월평균소득(?:액)?(?:의)?(\d{2,3})%", t)
                 if 30 <= int(m.group(1)) <= 200)
     if inc:
         out.append(("소득", "월평균 " + "·".join(f"{x}%" for x in inc[:4]) + " 이하" + (" (유형별)" if len(inc) > 1 else "")))
+    elif len(tiers := _uniq(re.findall(r"([1-3])순위(\d{2,3})%", t))) >= 2 and "월평균" in t:
+        # 청년안심주택 특별공급: '1순위 100% / 2순위 110% / 3순위 120%' (도시근로자 가구원수별 월평균소득 대비)
+        tiers = sorted(tiers)[:3]
+        out.append(("소득", "월평균 " + "·".join(p for _, p in tiers) + "%"
+                    + f"({tiers[0][0]}~{tiers[-1][0]}순위)"))
     elif re.search(r"소득기준[–\-:/]|소득기준에따라|소득\d분위기준|소득기준을", t):
         out.append(("소득", STD))
 
@@ -73,9 +84,12 @@ def summarize(text: str) -> list[tuple[str, str]]:
         # 청년안심주택: '청년(본인) 자산기준은 30~39세 가구 금액' · '신혼부부 세대 자산기준은 소득3분위 금액' (금액은 표)
         a1 = re.search(r"청년\(본인\)자산기준은(\d{2}~\d{2})세가구", t)
         a2 = re.search(r"신혼부부\(구성될\)세대자산기준은소득(\d)분위", t)
-        if a1 or a2:
+        amt = re.search(r"(?<![\d,.])(\d{2,4})\s+(\d{2,4})\s+단위\s*:\s*백만\s*원", text or "")
+        if amt and a1 and a2:          # 표 머리 순서: 청년 | (예비)신혼부부 | 비고 (단위: 백만원)
+            out.append(("자산", f"청년 {_eok(int(amt.group(1)) * 1_000_000)} / 신혼 {_eok(int(amt.group(2)) * 1_000_000)}"))
+        elif a1 or a2:
             out.append(("자산", " · ".join(x for x in (
-                f"청년 {a1.group(1)}세 가구" if a1 else "", f"신혼 소득{a2.group(1)}분위" if a2 else "") if x) + " 기준*"))
+                f"청년 {a1.group(1)}세 가구" if a1 else "", f"신혼 소득{a2.group(1)}분위" if a2 else "") if x) + " 기준(금액 공고문 참고)"))
         elif re.search(r"자산기준[–\-:/]|자산기준에따라|자산기준을", t):
             out.append(("자산", STD))
 
@@ -101,17 +115,20 @@ def summarize(text: str) -> list[tuple[str, str]]:
     else:
         r1 = re.search(r"1순위(?:지역)?(?:서울특별시|서울시)([가-힣]{1,4}구)(?:\d+호)?거주", t)
         if r1:
-            live.append(f"1순위 {r1.group(1)}" + (" (소득 같을 때)" if "동일소득일경우지역순위" in t else ""))
+            live.append(f"1순위 {r1.group(1)}" + ("(소득 같을 때)" if "동일소득일경우지역순위" in t else ""))
     if live:
         out.append(("거주", " · ".join(live)))
 
     # 혼인·신혼 — 소개 문구('무주택 청년 및 신혼부부의 주거안정…')의 '신혼부부'는 쓰지 않는다(2026-11-23 사용자 결정)
+    # 대상별 조건(신혼): 혼인 기간·예비신혼 혼인신고. '1세대로 간주·1건만 신청'은 신청 방법이라 자격 표에 넣지 않는다
+    mar = []
+    m = re.search(r"혼인(?:기간|한지|신고일로부터|신고일기준)?(?:이)?(\d{1,2})년이내", t)
+    if m:
+        mar.append(f"혼인 {m.group(1)}년 이내")
     if re.search(r"예비신혼부부[^※■]{0,30}?(?:입주일?|입주전|계약일?)까지혼인신고", t):
-        out.append(("혼인", "예비신혼은 입주 전 혼인신고"))
-    else:
-        m = re.search(r"신혼부부(\(예비신혼부부[^)]{0,20}포함\))?[^※■]{0,40}?1세대로간주", t)
-        if m:
-            out.append(("혼인", f"신혼부부{'(예비 포함)' if m.group(1) else ''} 1세대 간주 · 1건만 신청"))
+        mar.append("예비는 입주 전 혼인신고")
+    if mar:
+        out.append(("혼인", " · ".join(mar)))
 
     # 특별/일반 공급
     sp, gen = "특별공급" in t, "일반공급" in t
@@ -158,24 +175,54 @@ def line(items) -> str:
 
 
 def table_rows(items) -> list[tuple[str, str]]:
-    """자격 2열 표의 행. 각주는 맨 아래 행으로 한 번만."""
-    rows = [(k, v) for k, v in items if k != "※"]
-    if any(v.endswith("*") for _, v in items):
-        rows.append(("*", "금액은 공고문 참고"))
+    """자격 표의 행 — 묶어서 짧게: 대상 / 소득·자산·차량 / 거주 / 공급 (+ 엘리스: 입주 / 제한).
+    공고에 없는 항목은 행을 만들지 않는다. 대상별로 다르면 '청년 … / 신혼 …'으로 나눠 적는다."""
+    d = dict(items)
+    rows: list[tuple[str, str]] = []
+    who = []
+    if "혼인" in d:
+        who.append(" / ".join(x for x in (f"청년 {d['나이']}" if "나이" in d else "", f"신혼 {d['혼인']}") if x))
+    elif "나이" in d:
+        who.append(d["나이"])
+    for k in ("주택", "성별"):
+        if k in d:
+            who.append(d[k])
+    if who:
+        rows.append(("대상", " · ".join(who)))
+    money = [(k, d[k]) for k in ("소득", "자산", "차량") if k in d]
+    if money:
+        same = len({v for _, v in money}) == 1 and money[0][1] == STD        # 셋 다 '공고문 참고'면 한 번만
+        rows.append(("·".join(k for k, _ in money), STD if same else
+                     " · ".join(f"{k} {v}" for k, v in money) if len(money) > 1 else money[0][1]))
+    for k in ("거주", "공급", "입주"):
+        if k in d:
+            rows.append((k, d[k]))
+    lim = [f"{d['불가']} 불가"] if "불가" in d else []
+    if "대출" in d:
+        lim.append("대출 불가")
+    if lim:
+        rows.append(("제한", " · ".join(lim)))
     if any(k == "※" for k, _ in items):
         rows.append(("※", "그 밖은 공고문 확인"))
     return rows
 
 
+def split_money(rows):
+    """'소득·자산·차량' 한 행이 길어 칸에서 잘릴 때: '소득' / '자산·차량' 두 행으로 나눈다."""
+    out = []
+    for k, v in rows:
+        if k.startswith("소득·") and " · " in v:
+            first, rest = v.split(" · ", 1)
+            out += [("소득", first.removeprefix("소득 ")),
+                    (k.removeprefix("소득·"), rest if rest.count(" · ") else rest.split(" ", 1)[1])]
+        else:
+            out.append((k, v))
+    return out
+
+
 def box_lines(items) -> list[str]:
-    """슬랙 네모 칸(코드 블록)에 넣을 줄: '나이  만19~39세' 처럼 한 줄에 한 항목, 위에서 아래로.
-    '기준 있음*' 처럼 금액을 못 옮긴 항목이 있으면 맨 아래에 각주 한 줄로 모은다(같은 말 반복 방지)."""
-    rows = [f"{k}  {v}" for k, v in items if k != "※"]
-    if any(v.endswith("*") for k, v in items):
-        rows.append("* 금액은 공고문 참고")
-    if any(k == "※" for k, _ in items):
-        rows.append("※ 그 밖은 공고문 확인")
-    return rows
+    """네모 칸(코드 블록) 예비 형식 — 표와 같은 묶음을 한 줄씩."""
+    return [f"{k}  {v}" if k != "※" else f"※ {v}" for k, v in table_rows(items)]
 
 
 # ─────────────────────────── 출처별 글자 가져오기 ───────────────────────────
