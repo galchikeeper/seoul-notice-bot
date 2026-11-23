@@ -28,7 +28,7 @@ class T(unittest.TestCase):
             "나이 19~39세", "무주택(세대원 전부)", "소득 기준 있음(금액은 공고문)",
             "자산 기준: 청년 30~39세 가구 기준, 신혼 소득3분위 기준(금액은 공고문)",
             "차량가액 4,542만 원 이하", "거주지 1순위: 광진구 거주자 (소득이 같을 때)",
-            "신혼부부(예비 포함) 신청 가능", "공급: 특별·일반", "반려동물 불가"])
+            "공급: 특별·일반", "반려동물 불가"])
         # '임대사업자 … 대출 불가 시', '대출이 불가능 또는 일부 제한' 은 규정이 아니므로 넣지 않는다
         self.assertNotIn("대출 불가", got)
         self.assertFalse(any("사업자" in x for x in got))
@@ -37,6 +37,12 @@ class T(unittest.TestCase):
         self.assertEqual(E.summarize(ELYES), [
             "나이 만19~39세", "무주택", "차량가액 4,542만 원 이하", "계약일부터 1개월 이내 입주",
             "법인·외국인 불가", "대출 불가"])
+
+    def test_newlywed(self):
+        one = "신혼부부(예비신혼부부 포함)는 1세대로 간주하여 부부(예비부부) 중 1명이 대표로 1건만 신청이 가능하고"
+        self.assertIn("신혼부부(예비 포함)는 1세대로 간주(1건만 신청)", E.summarize(one))
+        intro = "■ 청년안심주택 공공지원민간임대는 무주택 청년 및 신혼부부의 주거안정을 위하여 공공의 지원을 받아"
+        self.assertFalse(any("신혼" in x for x in E.summarize(intro)))      # 소개 문구는 자격이 아니다
 
     def test_nothing(self):
         self.assertEqual(E.summarize("공지사항 목록 1 2 3 리빙가이드북"), [])
