@@ -10,90 +10,6 @@
   },
   "tracking": [
     {
-      "board_id": 6806,
-      "name": "광운대역 현대프라힐스",
-      "deadline": "11/23(월) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6806&menuNo=400008",
-      "addr": "서울특별시 노원구 월계동 410-3 일원",
-      "title": "[민간임대] 광운대역 현대프라힐스 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=78f3aa6df7454dad8367131ca942b47b&fileSn=1",
-      "apply_url": "https://kws-hdprahills.co.kr",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6805,
-      "name": "동묘앞역 청계로벤하임",
-      "deadline": "11/23(월) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6805&menuNo=400008",
-      "addr": "서울특별시 종로구 숭인동 240-1 외",
-      "title": "[민간임대] 동묘앞역 청계로벤하임 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=60819321f26f470b8ff627f57b3fdee7&fileSn=1",
-      "apply_url": "https://naver.me/FG3to9pz",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6804,
-      "name": "상봉역 제이스타상봉",
-      "deadline": "11/23(월) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6804&menuNo=400008",
-      "addr": "서울특별시 중랑구 상봉동 109-34번지",
-      "title": "[민간임대] 상봉역 제이스타상봉 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=194ae339dbb742859f2ca15fb996defe&fileSn=1",
-      "apply_url": "https://naver.me/5WUROTTd",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6802,
-      "name": "구로디지털단지역 유벤투스 240",
-      "deadline": "11/23(월) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6802&menuNo=400008",
-      "addr": "서울특별시 관악구 신림동 1644-3",
-      "title": "[민간임대] 구로디지털단지역 유벤투스 240 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=733e22b5e4b04589a91ac3f20487d5ad&fileSn=1",
-      "apply_url": "https://naver.me/xB79Y36D",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6800,
-      "name": "서초역 서초꽃마을 주얼리",
-      "deadline": "11/23(월) 17:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6800&menuNo=400008",
-      "addr": "서울특별시 서초구 반포대로 27길 13",
-      "title": "[민간임대] 서초역 서초꽃마을 주얼리 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=ec7da6c6ca1e4a29b7c62ac0e9470943&fileSn=1",
-      "apply_url": "https://seocho1502.qshop.ai",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6799,
-      "name": "강변역 비바힐스강변",
-      "deadline": "11/23(월) 16:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6799&menuNo=400008",
-      "addr": "서울특별시 광진구 구의동 593-11",
-      "title": "[민간임대] 강변역 비바힐스강변 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=4abfc9ea86504e9a8b64520583486f03&fileSn=1",
-      "apply_url": "https://naver.me/xaT4bxop",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6797,
-      "name": "왕십리역 라봄성동",
-      "deadline": "11/23(월) 10:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6797&menuNo=400008",
-      "addr": "서울특별시 성동구 마장동 836일원",
-      "title": "[민간임대] 왕십리역 라봄성동 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=1d7141a051cf403399bc1c32ee8cab63&fileSn=1",
-      "apply_url": "https://naver.me/xfblPG",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
       "board_id": 6801,
       "name": "개봉역 세이지움 개봉",
       "deadline": "11/24(화) 23:00",
@@ -102,8 +18,8 @@
       "title": "[민간임대] 개봉역 세이지움 개봉 추가모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=f091d51d9e8146a49487bfbe4a29d19d&fileSn=1",
       "apply_url": "https://naver.me/Ix0OmoxI",
-      "days_left": 1,
-      "dday": "D-1"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6796,
@@ -114,8 +30,8 @@
       "title": "[민간임대] 장한평역 유니트125(UNIT125) 추가모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=9dd8bdf957ad449ebca896952bd0281e&fileSn=1",
       "apply_url": "https://unit125.shineui.kr/",
-      "days_left": 1,
-      "dday": "D-1"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6803,
@@ -126,8 +42,8 @@
       "title": "[민간임대] 쌍문역 인히어쌍문 추가모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=1df6d02f550948769f4d931c7a7e6af2&fileSn=1",
       "apply_url": "https://naver.me/GIIBJJa4",
-      "days_left": 2,
-      "dday": "D-2"
+      "days_left": 1,
+      "dday": "D-1"
     },
     {
       "board_id": 6798,
@@ -138,11 +54,11 @@
       "title": "[민간임대] 미아사거리역 미아 헤리츠타워 추가모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=7bd4389ded8d4bdc852ffeda686d530d&fileSn=1",
       "apply_url": "https://naver.me/GprRXGkx",
-      "days_left": 2,
-      "dday": "D-2"
+      "days_left": 1,
+      "dday": "D-1"
     }
   ],
-  "checked": "2026-11-23",
+  "checked": "2026-11-24",
   "hillstate_seen": [
     "2025-12-19|예비임차인 모집 당첨자 발표(25.12.19)",
     "2024-02-26|[힐스테이트 관악 뉴포레] 건물 등기절차 진행 완료 공지",
@@ -156,7 +72,13 @@
     "2024-07-17|[힐스테이트 관악 뉴포레] 예비당첨자 명단 공지"
   ],
   "sh_seen": [
+    "313806",
+    "313805",
+    "313741",
+    "313767",
     "313552",
+    "313792",
+    "313791",
     "313481",
     "313647",
     "313747",
@@ -299,6 +221,9 @@
     "CITGjX+rFSbSmjmx8GBuwA=="
   ],
   "myhome_seen": [
+    "21605",
+    "21604",
+    "21598",
     "21591",
     "21586",
     "19834",
@@ -332,6 +257,7 @@
     "어바니엘한강공실세대모집공고접수기간11201122"
   ],
   "myhome_alerted": [
+    "서울지역본부일반매입임대주택예비입주자모집공고",
     "서울삼전강동천호LH수서1LH수서2행복주택예비입주자모집공고",
     "2026년서울특별시영구임대주택예비입주자모집"
   ]
