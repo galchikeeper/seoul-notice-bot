@@ -29,8 +29,10 @@
 `state.json` 의 `myhome_queue` 에 넣는다(`MYHOME_ON_MAC=0` 이면 예전처럼 여기서 보냄). 맥북의
 `galchi-automations/housing-local/myhome_local.py`(launchd `com.galchi.myhome`, 08~22시 매시 5분)가 origin/main 의
 대기열을 읽어 한국 IP 로 공고 페이지를 읽고 같은 관문을 거쳐 #임대주택 에 보낸다. 보낸 기록은 맥북 쪽 `myhome_state.json`.
-myhome.go.kr robots.txt 가 공고문 내려받기(`/hws/com/fms/cvplFileDownload.do`)를 금지해서 공고문 파일은 받지 않는다
-(관문은 마이홈의 '파일 없음'을 실패로 세지 않음).
+myhome.go.kr robots.txt 가 공고문 내려받기(`/hws/com/fms/cvplFileDownload.do`)를 금지해서 이 프로그램이 직접 받지는 않는다.
+맥북(`MYHOME_ASIDE=1`)에서는 사용자 지시(2026-11-24)로 사용자 브라우저(Aside CLI)가 공고 페이지의 공고문 링크와 같은 요청으로
+공고 1건에 한 번, 최대 2파일을 받는다(`reader.aside_myhome_files`). 전용면적은 공고 페이지 공급 목록, 매입임대는 공고문의 가구원수별 기준.
+관문은 마이홈 카드의 면적 빈 칸·금액 전부 빈 칸도 실패로 잡는다.
 
 (예전 기록) 마이홈포털 웹사이트는 robots 정책으로 접근이 막혀 제외했다 — 2026-11-24 robots.txt 는 `Allow: /` 에
 내려받기 주소 하나만 금지. 목록은 계속 공공데이터 API 로 받는다. 여기 뜨는 서울 공고는

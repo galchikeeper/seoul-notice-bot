@@ -300,7 +300,9 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
                                    if blocked else f"열리지 않음({type(e).__name__})")
     texts = []
     if aside:
-        got, why = aside_myhome_files(url)
+        if url not in _ASIDE_DONE:                 # 관문 재시도에서도 다시 받지 않는다(공고 1건에 Aside 1회, 검수 1/2)
+            _ASIDE_DONE[url] = aside_myhome_files(url)
+        got, why = _ASIDE_DONE[url]
         if not got:
             res["files"].append({"name": "공고문", "url": url, "kind": "", "size": 0, "how": f"Aside 로 받기 실패({why})",
                                  "chars": 0, "data": b""})
@@ -377,6 +379,9 @@ console.log('ASIDE_JSON ' + JSON.stringify(out));
 """
 
 
+_ASIDE_DONE: dict[str, tuple[list[dict], str]] = {}
+
+
 def aside_myhome_files(page_url: str, timeout: int = 150) -> tuple[list[dict], str]:
     """맥북 전용: 사용자 브라우저(Aside CLI)로 마이홈 공고 페이지를 열어 공고문(fnDownFile 링크) 최대 2개를 받는다.
     돌려주는 값: ([{name, data}], 실패 이유). 페이지 버튼과 같은 요청(POST)이라 사이트 동작 그대로다."""
@@ -392,7 +397,10 @@ def aside_myhome_files(page_url: str, timeout: int = 150) -> tuple[list[dict], s
     line = next((ln for ln in p.stdout.splitlines() if ln.startswith("ASIDE_JSON ")), "")
     if not line:
         return [], f"응답 없음(종료 {p.returncode})"
-    d = json.loads(line[len("ASIDE_JSON "):])
+    try:
+        d = json.loads(line[len("ASIDE_JSON "):])
+    except ValueError:
+        return [], "응답 해석 실패"
     if not d.get("links"):
         return [], "공고 페이지에 공고문 링크 없음"
     got, bad = [], []
@@ -547,7 +555,8 @@ def _man_rows(lines: list[str]) -> list[dict]:
     return out
 
 
-AREA_RULE = re.compile(r"(\d[～~\-]?\d*인\s*가구(?:\s*이상)?)\s*(?:\(\d형\))?\s*:\s*전용면적\s*([0-9.]+㎡\s*(?:이하|초과|미만)?(?:\s*[～~]\s*[0-9.]+㎡\s*(?:이하|초과|미만)?)?)")
+AREA_RULE = re.compile(r"((?:\d+인?\s*[～~\-]\s*)?\d+인\s*(?:이상\s*)?가구(?:\s*이상)?)\s*(?:\(\d형\))?\s*[:：]\s*전용면적\s*"
+                       r"([0-9.]+㎡\s*(?:이하|초과|미만)?(?:\s*[～~\-]?\s*[0-9.]+㎡\s*(?:이하|초과|미만)?)?)")
 
 
 def area_rule_from_text(text: str) -> str:

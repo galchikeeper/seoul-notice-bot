@@ -194,7 +194,7 @@ class SelfCheck(unittest.TestCase):
         import gate as G
         card = {"rows": [["다가구주택", "확인 실패", "매입임대", "기준", "확인 실패", "확인 실패"]], "flags": ["📐 면적 확인 필요"],
                 "elig_items": ["주택 무주택"], "top": "x · 마감 2026-12-23", "notice_url": "u"}
-        probs = G.check(card, {"page_url": "u", "files": [], "no_files_reason": "금지"}, [])
+        probs = G.check(card, {"page_url": "u", "files": [], "no_files_reason": "금지"}, [], source="myhome")
         self.assertEqual([p.split(" — ")[0] for p in probs], ["면적", "임대조건"])   # 면적 빈 칸 + 금액 전부 빈 칸
 
 
@@ -226,3 +226,41 @@ class AreaRule(unittest.TestCase):
         c = bot.slack_item(m, TODAY, fetch_pdf=False)
         self.assertEqual(c["flags"], ["📐 전용면적 기준: " + R.area_rule_from_text(t)])
         self.assertFalse(any(p.startswith("면적") for p in G.check(c, {"files": [], "no_files_reason": "x"}, [])))
+
+
+    def test_area_flag_other_source_ok(self):     # 엘리스·청년안심 등은 면적 빈 칸이 정상 — 실패로 세지 않음(검수 1/2)
+        import gate as G
+        card = {"rows": [["A", "확인 실패", "청년", "기준", "1,000", "60"]], "flags": ["📐 면적 확인 필요"],
+                "elig_items": ["주택 무주택"], "top": "x · 마감 2026-12-23", "notice_url": "u", "files": [{"url": "f"}]}
+        res = {"page_url": "u", "files": [{"name": "a", "data": b"%PDF", "kind": "pdf", "how": "PDF"}]}
+        self.assertEqual(G.check(card, res, [{"url": "f"}], source="soco"), [])
+
+
+class AreaRuleVariants(unittest.TestCase):
+    def test_variants(self):                      # 검수 1/2: 앞 숫자·물결 없는 상한·전각 콜론
+        import reader as R
+        cases = {"2인～4인 가구(2형) : 전용면적 40㎡ 초과～85㎡ 이하": "2인～4인 가구 40㎡ 초과～85㎡ 이하",
+                 "2-4인 가구 : 전용면적 40㎡ 초과 85㎡ 이하": "2-4인 가구 40㎡ 초과 85㎡ 이하",
+                 "5인 이상 가구 : 전용면적 85㎡ 초과": "5인 이상 가구 85㎡ 초과",
+                 "1인 가구 ： 전용면적 40㎡ 이하": "1인 가구 40㎡ 이하"}
+        for t, want in cases.items():
+            self.assertEqual(R.area_rule_from_text(t), want)
+
+
+class AsideOnce(unittest.TestCase):
+    def test_once_per_notice(self):               # 관문 재시도에서도 Aside 는 공고당 1회
+        import os, reader as R
+        calls = []
+        old_f, old_get = R.aside_myhome_files, R.get
+        R.aside_myhome_files = lambda u, **k: (calls.append(u) or ([], "시간 초과"))
+        R.get = lambda u, **k: (_ for _ in ()).throw(ConnectionError("x"))
+        os.environ["MYHOME_ASIDE"] = "1"
+        try:
+            R._ASIDE_DONE.clear()
+            for _ in range(3):
+                R.read({"source": "myhome", "url": "https://www.myhome.go.kr/once", "title": "t"})
+        finally:
+            R.aside_myhome_files, R.get = old_f, old_get
+            os.environ.pop("MYHOME_ASIDE", None)
+            R._ASIDE_DONE.clear()
+        self.assertEqual(calls, ["https://www.myhome.go.kr/once"])

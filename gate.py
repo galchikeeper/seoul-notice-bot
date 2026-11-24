@@ -21,7 +21,7 @@ FAILURES = ROOT / "failures.jsonl"
 KST = dt.timezone(dt.timedelta(hours=9))
 
 
-def check(card: dict, res: dict, archived: list[dict]) -> list[str]:
+def check(card: dict, res: dict, archived: list[dict], source: str = "") -> list[str]:
     """실패 항목 목록(문구: '무엇 — 왜'). 비면 통과."""
     out = []
     if res.get("page_problem"):
@@ -49,7 +49,8 @@ def check(card: dict, res: dict, archived: list[dict]) -> list[str]:
     elif not card.get("rows"):
         why = _why_text(res)
         out.append(f"임대조건 — 공고문에서 금액 표·줄을 찾지 못함{why}")
-    elif any("면적 확인 필요" in f for f in card.get("flags") or []):
+    elif source == "myhome" and any("면적 확인 필요" in f for f in card.get("flags") or []):
+        # 마이홈만: 엘리스·청년안심 PDF 타입은 면적 빈 칸이 원래 있는 정상 상태라 실패로 세지 않는다(검수 1/2)
         # 표는 있는데 전용면적이 빈 칸(30㎡ 기준을 적용 못 함) — 2026-11-24 마이홈 카드에서 사람이 먼저 발견한 오류
         out.append(f"면적 — 임대조건 표에 전용면적이 비어 있음{_why_text(res)}")
     rows = card.get("rows") or []
@@ -93,7 +94,7 @@ def prepare(n: dict, build, archive=None, tries: int = 3) -> tuple[dict, dict, l
                 archived = archive(n, res["files"]) or []
             except Exception as e:
                 print(f"gate: 사본 보관 실패 ({type(e).__name__})")
-        probs = check(card, res, archived)
+        probs = check(card, res, archived, source=n.get("source", ""))
         net = [p for p in probs if p.startswith(NET) and "사본 보관" not in p]   # 다시 읽어서 나아질 수 있는 실패만
         if not net or i == tries - 1:
             break
