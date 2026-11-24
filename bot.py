@@ -263,14 +263,7 @@ def collect(state: dict, today: dt.date):
     if os.environ.get("MYHOME_API_KEY", "").strip():
         try:
             mh = MH.fetch_notices(today)
-            board("마이홈", "myhome_seen", [{**x, "mine": S.mine(x["title"])} for x in mh], lambda x: {
-                "board_id": f"myhome:{x['id']}", "source": "myhome", "title": f"마이홈 — {x['title']}",
-                "name": x["title"][:40], "raw_title": x["title"], "kicker": f"{x['insttNm']} {x['suplyTyNm']}",
-                "addr": x["region"], "deadline": x["deadline"] or "공고문 확인", "days_left": x["days_left"],
-                "dday": ("D-DAY" if x["days_left"] == 0 else f"D-{x['days_left']}") if x["days_left"] is not None else "",
-                "urgent": x["days_left"] is not None and 0 <= x["days_left"] <= URGENT_DAYS,
-                "is_recruit": True, "types": x["types"], "types_complete": True,
-                "url": x["url"], "apply_url": x["url"], "site": "", "pdf": None})
+            board("마이홈", "myhome_seen", [{**x, "mine": S.mine(x["title"])} for x in mh], myhome_notice)
         except Exception as e:
             errors.append(f"마이홈 API 확인 실패: {MH.redact(str(e))[:60]}")
     else:
@@ -279,6 +272,18 @@ def collect(state: dict, today: dt.date):
     news = dedupe(news, state)
     news.sort(key=priority)
     return news, errors, open_now
+
+
+def myhome_notice(x: dict) -> dict:
+    """마이홈 API 항목(MH.fetch_notices) → 공고 1건."""
+    return {
+        "board_id": f"myhome:{x['id']}", "source": "myhome", "title": f"마이홈 — {x['title']}",
+        "name": x["title"][:40], "raw_title": x["title"], "kicker": f"{x['insttNm']} {x['suplyTyNm']}",
+        "addr": x["region"], "deadline": x["deadline"] or "공고문 확인", "days_left": x["days_left"],
+        "dday": ("D-DAY" if x["days_left"] == 0 else f"D-{x['days_left']}") if x["days_left"] is not None else "",
+        "urgent": x["days_left"] is not None and 0 <= x["days_left"] <= URGENT_DAYS,
+        "is_recruit": True, "types": x["types"], "types_complete": True,
+        "url": x["url"], "apply_url": x["url"], "site": "", "pdf": None}
 
 
 def tnorm(t: str) -> str:
@@ -679,6 +684,15 @@ def test_send(spec: str) -> int:
     """수동 시험 발송: TEST_SEND='sh:313647' 처럼 출처:번호 1건을 관문까지 거쳐 슬랙에 '🧪 시험'으로. 상태 파일 변경 없음."""
     src, _, nid = spec.partition(":")
     today = dt.datetime.now(KST).date()
+    if src == "myhome":
+        # 마이홈은 여기(GitHub)서 공고 페이지를 못 연다 → API 값으로 대기열 항목만 만들어 로그에 찍는다(발송 안 함).
+        # 맥북: housing-local/myhome_local.py --test <이 줄의 JSON 을 담은 파일> 로 🧪 시험 카드를 보낸다.
+        x = next((x for x in MH.fetch_notices(today) if str(x["id"]) == nid), None)
+        if not x:
+            print(f"시험 발송: 마이홈 {nid} 를 API 결과(범위 안)에서 못 찾음")
+            return 1
+        print("MYHOME_ITEM_JSON " + json.dumps(myhome_queue_item(myhome_notice(x), "new", today), ensure_ascii=False))
+        return 0
     if src != "sh":
         print(f"시험 발송: 지원 안 하는 출처 {src}")
         return 1

@@ -30,7 +30,7 @@ on:
         required: false
         default: "0"
       test_send:
-        description: "공고 1건 시험 발송(관문까지 거쳐 🧪 시험으로) — 예: sh:313647. 상태 파일 변경 없음"
+        description: "공고 1건 시험 발송(관문까지 거쳐 🧪 시험으로) — 예: sh:313647. myhome:번호 는 맥북 시험용 JSON 만 로그에 찍음. 상태 파일 변경 없음"
         required: false
         default: ""
       site_report:
