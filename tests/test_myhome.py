@@ -187,3 +187,42 @@ class MyhomeArea(unittest.TestCase):
     def test_no_list(self):                       # 매입임대(다가구)처럼 목록이 없으면 API 값 그대로
         import reader as R
         self.assertEqual(R.myhome_types("<html></html>", "https://www.myhome.go.kr/x"), [])
+
+
+class SelfCheck(unittest.TestCase):
+    def test_gate_area_missing(self):             # 표는 있는데 전용면적이 비면 관문 실패(사람보다 먼저 잡기)
+        import gate as G
+        card = {"rows": [["다가구주택", "확인 실패", "매입임대", "기준", "확인 실패", "확인 실패"]], "flags": ["📐 면적 확인 필요"],
+                "elig_items": ["주택 무주택"], "top": "x · 마감 2026-12-23", "notice_url": "u"}
+        probs = G.check(card, {"page_url": "u", "files": [], "no_files_reason": "금지"}, [])
+        self.assertEqual([p.split(" — ")[0] for p in probs], ["면적", "임대조건"])   # 면적 빈 칸 + 금액 전부 빈 칸
+
+
+class AsideFetch(unittest.TestCase):
+    def test_parse(self):
+        import base64, json, subprocess, reader as R
+        out = {"links": 1, "files": [{"name": "공고문.pdf", "status": 200, "b64": base64.b64encode(b"%PDF-1.6 x").decode()}]}
+        class P:
+            returncode, stdout = 0, "✔︎ Opened\nASIDE_JSON " + json.dumps(out) + "\n"
+        import shutil
+        old, old_which = subprocess.run, shutil.which
+        subprocess.run, shutil.which = (lambda *a, **k: P()), (lambda name: "/bin/sh")   # Actions 에는 aside 가 없다
+        try:
+            got, why = R.aside_myhome_files("https://www.myhome.go.kr/x")
+        finally:
+            subprocess.run, shutil.which = old, old_which
+        self.assertEqual([(g["name"], g["data"][:5]) for g in got], [("공고문.pdf", b"%PDF-")])
+        self.assertEqual(why, "")
+
+
+class AreaRule(unittest.TestCase):
+    def test_rule_flag(self):                     # 매입임대: 집별 면적 대신 가구원수별 기준 → 표시하고 관문 통과
+        import reader as R, gate as G
+        t = "- 1인 가구(1형) : 전용면적 40㎡ 이하\n- 2～4인 가구(2형) : 전용면적 40㎡ 초과 ～ 85㎡ 이하\n- 5인 가구 이상(3형) : 전용면적 85㎡ 초과"
+        self.assertEqual(R.area_rule_from_text(t), "1인 가구 40㎡ 이하 · 2～4인 가구 40㎡ 초과 ～ 85㎡ 이하 · 5인 가구 이상 85㎡ 초과")
+        n = {"source": "myhome", "title": "t", "name": "t", "deadline": "2026-12-23", "url": "u", "pdf": None,
+             "types": [{"kind": "매입임대", "label": "다가구주택", "area": "", "prices": [{"ratio": "기준", "deposit": None, "rent": None}]}]}
+        m = R.fill(n, {"files": [], "text": t + "\n무주택세대구성원"})
+        c = bot.slack_item(m, TODAY, fetch_pdf=False)
+        self.assertEqual(c["flags"], ["📐 전용면적 기준: " + R.area_rule_from_text(t)])
+        self.assertFalse(any(p.startswith("면적") for p in G.check(c, {"files": [], "no_files_reason": "x"}, [])))

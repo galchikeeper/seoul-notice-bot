@@ -280,9 +280,11 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
     need = not (n.get("types") or n.get("ely_rows")) or not n.get("elig") or not n.get("deadline")
     url = n.get("url") or ""
     res = {"page_url": url, "page_problem": "", "files": [], "text": "", "problems": []}
-    if n.get("source") == "myhome":
+    aside = n.get("source") == "myhome" and os.environ.get("MYHOME_ASIDE") == "1"
+    if n.get("source") == "myhome" and not aside:
         # myhome.go.kr robots.txt 가 공고문 내려받기(/hws/com/fms/cvplFileDownload.do)를 금지한다(2026-11-24 확인)
-        # → 공고 페이지만 읽고 파일은 받지 않는다. 관문은 이 이유가 있으면 '파일 없음'을 실패로 세지 않는다.
+        # → 이 프로그램은 직접 받지 않는다. 맥북(MYHOME_ASIDE=1)에서는 사용자 지시(2026-11-24)로 사용자 브라우저(Aside)가
+        #   공고 페이지를 열어 공고문 링크와 같은 요청으로 받는다(공고 1건에 파일 최대 2개, 카드 보낼 때만).
         res["no_files_reason"] = "마이홈은 공고문 자동 내려받기 금지(robots) — '공고 보기'에서 확인"
     sess = requests.Session()
     html = ""
@@ -297,8 +299,21 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
             res["page_problem"] = (f"{where}에서 접속 안 됨({type(e).__name__}) — 휴대폰에서는 열릴 수 있음"
                                    if blocked else f"열리지 않음({type(e).__name__})")
     texts = []
-    # 마이홈은 첨부를 아예 받지 않는다(robots 금지 주소) — 링크 형태와 관계없이 목록을 비운다
-    for a in ([] if res.get("no_files_reason") else attachments(n, html, url)[:max_files]):
+    if aside:
+        got, why = aside_myhome_files(url)
+        if not got:
+            res["files"].append({"name": "공고문", "url": url, "kind": "", "size": 0, "how": f"Aside 로 받기 실패({why})",
+                                 "chars": 0, "data": b""})
+        for g in got:
+            f = {"name": g["name"], "url": url, "kind": "", "size": len(g["data"]), "how": "", "chars": 0, "data": g["data"]}
+            f["kind"], t, f["how"] = extract(g["name"], g["data"])
+            f["how"] = "Aside · " + f["how"]
+            f["chars"] = len(_ns(t))
+            res["files"].append(f)
+            if t and not re.search(r"별지|서식|양식|동의서", g["name"]):
+                texts.append(t)
+    # 마이홈은 이 프로그램이 첨부를 직접 요청하지 않는다(robots 금지 주소) — 링크 형태와 관계없이 목록을 비운다
+    for a in ([] if n.get("source") == "myhome" else attachments(n, html, url)[:max_files]):
         f = {"name": a["name"], "url": a["url"], "kind": "", "size": 0, "how": "", "chars": 0, "data": b""}
         try:
             data = get(a["url"], referer=url, session=sess, timeout=90, tries=tries).content
@@ -338,6 +353,57 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
 # 마이홈 공고 페이지의 스크립트에 단지·타입별 공급 목록(suplyList: houseSn·styleNm·prvuseAr·rentGtn·mtRntchrg)과
 # 그 페이지 단지의 이름(houseList: houseSn·hsmpNm)이 들어 있다. 공공데이터 API 에는 전용면적이 없어 이 값으로 채운다.
 # 다른 단지 이름은 같은 공고의 &houseSn=번호 페이지에서 읽는다(robots 허용 경로, 2026-11-24 확인).
+
+ASIDE_JS = r"""
+const page = await openTab(%s);
+const out = await page.evaluate(async () => {
+  const res = [];
+  const links = [...document.querySelectorAll('a[href^="javascript:fnDownFile"]')];
+  for (const a of links.slice(0, 2)) {
+    const m = a.getAttribute('href').match(/fnDownFile\('(\w+)',\s*'(\d+)'\)/);
+    if (!m) continue;
+    try {
+      const r = await fetch('/hws/com/fms/cvplFileDownload.do', {method: 'POST', body: new URLSearchParams({atchFileId: m[1], fileSn: m[2]})});
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let s = '';
+      for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      res.push({name: a.textContent.trim(), status: r.status, b64: btoa(s)});
+    } catch (e) { res.push({name: a.textContent.trim(), error: String(e)}); }
+  }
+  return {links: links.length, files: res};
+});
+await page.close();
+console.log('ASIDE_JSON ' + JSON.stringify(out));
+"""
+
+
+def aside_myhome_files(page_url: str, timeout: int = 150) -> tuple[list[dict], str]:
+    """맥북 전용: 사용자 브라우저(Aside CLI)로 마이홈 공고 페이지를 열어 공고문(fnDownFile 링크) 최대 2개를 받는다.
+    돌려주는 값: ([{name, data}], 실패 이유). 페이지 버튼과 같은 요청(POST)이라 사이트 동작 그대로다."""
+    import base64, shutil, subprocess
+    exe = shutil.which("aside") or os.path.expanduser("~/.local/bin/aside")
+    if not os.path.exists(exe):
+        return [], "aside 명령 없음"
+    try:
+        p = subprocess.run([exe, "repl", "--file", "-"], input=ASIDE_JS % json.dumps(page_url), capture_output=True,
+                           text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return [], "시간 초과"
+    line = next((ln for ln in p.stdout.splitlines() if ln.startswith("ASIDE_JSON ")), "")
+    if not line:
+        return [], f"응답 없음(종료 {p.returncode})"
+    d = json.loads(line[len("ASIDE_JSON "):])
+    if not d.get("links"):
+        return [], "공고 페이지에 공고문 링크 없음"
+    got, bad = [], []
+    for f in d.get("files", []):
+        data = base64.b64decode(f.get("b64", "")) if f.get("b64") else b""
+        if f.get("status") == 200 and data:
+            got.append({"name": f["name"][:80] or "공고문", "data": data})
+        else:
+            bad.append(f.get("error") or f"HTTP {f.get('status')}")
+    return got, "; ".join(bad)[:80]
+
 
 def _js_objs(html: str, var: str) -> list[dict]:
     return [dict(re.findall(r"(\w+)\s*:\s*\"([^\"]*)\"", b))
@@ -481,6 +547,19 @@ def _man_rows(lines: list[str]) -> list[dict]:
     return out
 
 
+AREA_RULE = re.compile(r"(\d[～~\-]?\d*인\s*가구(?:\s*이상)?)\s*(?:\(\d형\))?\s*:\s*전용면적\s*([0-9.]+㎡\s*(?:이하|초과|미만)?(?:\s*[～~]\s*[0-9.]+㎡\s*(?:이하|초과|미만)?)?)")
+
+
+def area_rule_from_text(text: str) -> str:
+    """매입임대 공고의 '1인 가구(1형) : 전용면적 40㎡ 이하' 같은 줄 → '1인 가구 40㎡ 이하 · …'. 없으면 ''."""
+    out = []
+    for m in AREA_RULE.finditer(text or ""):
+        x = " ".join(m.group(1).split()) + " " + " ".join(m.group(2).split())
+        if x not in out:
+            out.append(x)
+    return " · ".join(out[:4])
+
+
 def fill(n: dict, res: dict) -> dict:
     """읽은 결과로 빈 칸만 채운 사본. 이미 값이 있는 칸(출처가 준 값)은 건드리지 않는다."""
     import eligibility as ELIG
@@ -506,6 +585,11 @@ def fill(n: dict, res: dict) -> dict:
             if rows:
                 m["types"], m["types_complete"] = rows, True
                 how.append("임대조건: 공고문 글자 줄")
+    if m.get("source") == "myhome" and not any((t.get("area") or "") for t in m.get("types") or []):
+        rule = area_rule_from_text(res["text"])
+        if rule:
+            m["area_rule"] = rule
+            how.append("면적: 공고문 가구원수별 기준")
     if not m.get("elig"):
         try:
             m["elig"] = ELIG.summarize(res["text"]) if res["text"] else []

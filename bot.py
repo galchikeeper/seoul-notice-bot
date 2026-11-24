@@ -634,7 +634,10 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     if "elig" not in n and fetch_pdf:
         n = {**n, "elig": eligibility_of(n)}
     elig = list(n.get("elig") or [])
-    return {"top": top, "flags": ["📐 면적 확인 필요"] if area_unknown else [],
+    flags = ["📐 면적 확인 필요"] if area_unknown else []
+    if area_unknown and n.get("area_rule"):        # 매입임대처럼 집별 면적이 없고 가구원수별 기준만 있는 공고
+        flags = [f"📐 전용면적 기준: {n['area_rule']}"]
+    return {"top": top, "flags": flags,
             "elig": ELIG.line(elig), "elig_items": elig,
             "rows": rows, "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,
             "urgent": urgent, "skip": skip, "dropped_types": len(types) - len(kept),

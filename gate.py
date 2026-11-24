@@ -49,6 +49,13 @@ def check(card: dict, res: dict, archived: list[dict]) -> list[str]:
     elif not card.get("rows"):
         why = _why_text(res)
         out.append(f"임대조건 — 공고문에서 금액 표·줄을 찾지 못함{why}")
+    elif any("면적 확인 필요" in f for f in card.get("flags") or []):
+        # 표는 있는데 전용면적이 빈 칸(30㎡ 기준을 적용 못 함) — 2026-11-24 마이홈 카드에서 사람이 먼저 발견한 오류
+        out.append(f"면적 — 임대조건 표에 전용면적이 비어 있음{_why_text(res)}")
+    rows = card.get("rows") or []
+    if (rows and all(isinstance(r, list) and len(r) >= 6 and r[4] == "확인 실패" and r[5] == "확인 실패" for r in rows)
+            and not any("전용면적 기준" in f for f in card.get("flags") or [])):   # 매입임대는 집마다 금액이 달라 원래 없음
+        out.append(f"임대조건 — 표의 보증금·월세가 모두 비어 있음{_why_text(res)}")
     if not card.get("elig_items"):
         out.append(f"자격 — 공고문에서 자격 문장을 찾지 못함{_why_text(res)}")
     if "마감 공고문 확인" in card.get("top", "") or "마감 확인 필요" in card.get("top", ""):
