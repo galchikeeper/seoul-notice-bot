@@ -636,7 +636,9 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     elig = list(n.get("elig") or [])
     flags = ["📐 면적 확인 필요"] if area_unknown else []
     if area_unknown and n.get("area_rule"):        # 매입임대처럼 집별 면적이 없고 가구원수별 기준만 있는 공고
-        flags = [f"📐 전용면적 기준: {n['area_rule']}"]
+        # 표가 이미 기준 행(면적 칸에 '40㎡ 이하' 등)이면 위 줄은 겹치니 붙이지 않는다
+        in_rows = kept and all(str(t.get("area", "")).endswith(("이하", "초과", "미만")) for t in kept)
+        flags = [] if in_rows else [f"📐 전용면적 기준: {n['area_rule']}"]
     return {"top": top, "flags": flags,
             "elig": ELIG.line(elig), "elig_items": elig,
             "rows": rows, "caption": f"{name} 임대조건", "note": note, "fallback_text": fallback,

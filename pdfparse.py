@@ -202,6 +202,8 @@ def fetch_types(pdf_url: str, timeout: int = 90, with_status: bool = False):
 def fmt_num(v) -> str:
     if v is None:
         return "확인 실패"                    # 못 읽은 금액은 채우지 않는다
+    if isinstance(v, str):
+        return v                              # '주택별 상이' 같은 설명 글자(매입임대)
     return f"{int(v):,}" if float(v).is_integer() else f"{v:,.2f}".rstrip("0").rstrip(".")
 
 

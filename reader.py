@@ -559,14 +559,19 @@ AREA_RULE = re.compile(r"((?:\d+인?\s*[～~\-]\s*)?\d+인\s*(?:이상\s*)?가�
                        r"([0-9.]+㎡\s*(?:이하|초과|미만)?(?:\s*[～~\-]?\s*[0-9.]+㎡\s*(?:이하|초과|미만)?)?)")
 
 
-def area_rule_from_text(text: str) -> str:
-    """매입임대 공고의 '1인 가구(1형) : 전용면적 40㎡ 이하' 같은 줄 → '1인 가구 40㎡ 이하 · …'. 없으면 ''."""
+def area_rules_from_text(text: str) -> list[tuple[str, str]]:
+    """매입임대 공고의 '1인 가구(1형) : 전용면적 40㎡ 이하' 같은 줄 → [('1인 가구', '40㎡ 이하'), …](최대 4개)."""
     out = []
     for m in AREA_RULE.finditer(text or ""):
-        x = " ".join(m.group(1).split()) + " " + " ".join(m.group(2).split())
+        x = (" ".join(m.group(1).split()), " ".join(m.group(2).split()))
         if x not in out:
             out.append(x)
-    return " · ".join(out[:4])
+    return out[:4]
+
+
+def area_rule_from_text(text: str) -> str:
+    """area_rules_from_text 를 한 줄로: '1인 가구 40㎡ 이하 · …'. 없으면 ''."""
+    return " · ".join(f"{a} {b}" for a, b in area_rules_from_text(text))
 
 
 def fill(n: dict, res: dict) -> dict:
@@ -595,10 +600,18 @@ def fill(n: dict, res: dict) -> dict:
                 m["types"], m["types_complete"] = rows, True
                 how.append("임대조건: 공고문 글자 줄")
     if m.get("source") == "myhome" and not any((t.get("area") or "") for t in m.get("types") or []):
-        rule = area_rule_from_text(res["text"])
-        if rule:
-            m["area_rule"] = rule
+        rules = area_rules_from_text(res["text"])
+        if rules:
+            m["area_rule"] = area_rule_from_text(res["text"])
             how.append("면적: 공고문 가구원수별 기준")
+            ts = m.get("types") or []
+            if all(p.get("deposit") is None and p.get("rent") is None for t in ts for p in t.get("prices") or []):
+                # 매입임대(예비입주자): 집이 정해지지 않아 금액은 주택별로 다르다 → 표를 가구원수별 면적 기준 행으로
+                kind = next((t.get("kind") for t in ts if t.get("kind")), "")
+                m["types"] = [{"kind": kind, "label": who, "area": area,
+                               "prices": [{"ratio": "기준", "deposit": "주택별 상이", "rent": "주택별 상이"}]}
+                              for who, area in rules]
+                m["types_complete"] = True
     if not m.get("elig"):
         try:
             m["elig"] = ELIG.summarize(res["text"]) if res["text"] else []

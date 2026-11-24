@@ -224,7 +224,11 @@ class AreaRule(unittest.TestCase):
              "types": [{"kind": "매입임대", "label": "다가구주택", "area": "", "prices": [{"ratio": "기준", "deposit": None, "rent": None}]}]}
         m = R.fill(n, {"files": [], "text": t + "\n무주택세대구성원"})
         c = bot.slack_item(m, TODAY, fetch_pdf=False)
-        self.assertEqual(c["flags"], ["📐 전용면적 기준: " + R.area_rule_from_text(t)])
+        self.assertEqual(c["flags"], [])                                  # 기준이 표 안에 들어가 위 줄은 없음
+        self.assertEqual([r[:2] + r[4:] for r in c["rows"]],
+                         [["1인 가구", "40㎡ 이하", "주택별 상이", "주택별 상이"],
+                          ["2～4인 가구", "40㎡ 초과 ～ 85㎡ 이하", "주택별 상이", "주택별 상이"],
+                          ["5인 가구 이상", "85㎡ 초과", "주택별 상이", "주택별 상이"]])
         self.assertFalse(any(p.startswith("면적") for p in G.check(c, {"files": [], "no_files_reason": "x"}, [])))
 
 
