@@ -156,3 +156,34 @@ class MyhomeNoDownload(unittest.TestCase):
         res = {"page_url": "u", "files": [], "no_files_reason": "금지"}
         self.assertEqual(G.check(card, res, []), [])
         self.assertIn("파일 — 공고 페이지에서 첨부를 찾지 못함", G.check(card, {"page_url": "u", "files": []}, []))
+
+
+
+class MyhomeArea(unittest.TestCase):
+    """마이홈 페이지 스크립트의 공급 목록으로 타입별 전용면적·금액을 채운다(API 에는 면적 없음, 2026-11-24)."""
+    HTML = ('houseList.push({ pblancId : "21598", houseSn : "4", hsmpNm : "서울삼전" });'
+            'suplyList.push({ pblancId : "21598", houseSn : "4", styleNm : "26", prvuseAr : "26.21", rentGtn : "84400000", mtRntchrg : "351660" });'
+            'suplyList.push({ pblancId : "21598", houseSn : "4", styleNm : "41", prvuseAr : "41.39", rentGtn : "120400000", mtRntchrg : "501660" });'
+            'suplyList.push({ pblancId : "21598", houseSn : "5", styleNm : "36B", prvuseAr : "36.33", rentGtn : "102340000", mtRntchrg : "383770" });')
+
+    def test_types(self):
+        import reader as R
+        class Resp:
+            text = 'houseList.push({ pblancId : "21598", houseSn : "5", hsmpNm : "강동천호" });'
+        old = R.get
+        R.get = lambda u, **k: Resp()
+        try:
+            ts = R.myhome_types(self.HTML, "https://www.myhome.go.kr/x", kind="행복주택")
+        finally:
+            R.get = old
+        self.assertEqual([(t["label"], t["area"], t["prices"][0]["deposit"], t["prices"][0]["rent"]) for t in ts],
+                         [("서울삼전 26", "26.21", 8440.0, 35.17), ("서울삼전 41", "41.39", 12040.0, 50.17),
+                          ("강동천호 36B", "36.33", 10234.0, 38.38)])
+        c = bot.slack_item({"title": "t", "name": "t", "deadline": "2026-12-01", "types": ts, "url": "u", "pdf": None},
+                           TODAY, fetch_pdf=False)
+        self.assertEqual(c["flags"], [])                               # 면적이 있으니 📐 없음
+        self.assertEqual([r[0] for r in c["rows"]], ["서울삼전 41", "강동천호 36B"])   # 30㎡ 미만 제외
+
+    def test_no_list(self):                       # 매입임대(다가구)처럼 목록이 없으면 API 값 그대로
+        import reader as R
+        self.assertEqual(R.myhome_types("<html></html>", "https://www.myhome.go.kr/x"), [])

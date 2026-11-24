@@ -326,7 +326,55 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
         texts.append(body)
         res["problems"].append("첨부 글자 없음 → 페이지 본문으로 대체")
     res["text"] = "\n".join(texts)
+    if n.get("source") == "myhome" and html:
+        try:
+            res["myhome_types"] = myhome_types(html, url, sess, kind=_first_kind(n))
+        except Exception as e:                      # 못 읽으면 API 값(면적 없음)을 그대로 쓴다
+            res["problems"].append(f"마이홈 공급 목록 읽기 실패({type(e).__name__})")
     return res
+
+
+# ─────────────────────────── 마이홈 공급 목록 ───────────────────────────
+# 마이홈 공고 페이지의 스크립트에 단지·타입별 공급 목록(suplyList: houseSn·styleNm·prvuseAr·rentGtn·mtRntchrg)과
+# 그 페이지 단지의 이름(houseList: houseSn·hsmpNm)이 들어 있다. 공공데이터 API 에는 전용면적이 없어 이 값으로 채운다.
+# 다른 단지 이름은 같은 공고의 &houseSn=번호 페이지에서 읽는다(robots 허용 경로, 2026-11-24 확인).
+
+def _js_objs(html: str, var: str) -> list[dict]:
+    return [dict(re.findall(r"(\w+)\s*:\s*\"([^\"]*)\"", b))
+            for b in re.findall(var + r"\.push\(\{(.*?)\}\)", html, re.S)]
+
+
+def _first_kind(n: dict) -> str:
+    return next((t.get("kind", "") for t in n.get("types") or [] if t.get("kind")), "")
+
+
+def myhome_types(html: str, url: str, sess=None, kind: str = "", max_pages: int = 8) -> list[dict]:
+    """[{kind, label('단지 타입'), area, prices:[{ratio, deposit(만원), rent(만원)}]}]. 목록이 없으면 []."""
+    import myhome as MH
+    sup = _js_objs(html, "suplyList")
+    if not sup:
+        return []
+    names = {h.get("houseSn"): h.get("hsmpNm", "") for h in _js_objs(html, "houseList")}
+    pid = sup[0].get("pblancId", "")
+    for sn in dict.fromkeys(s.get("houseSn") for s in sup):
+        if sn in names or not pid or max_pages <= 0:
+            continue
+        max_pages -= 1
+        u = urljoin(url, f"/hws/portal/sch/selectRsdtRcritNtcDetailView.do?pblancId={pid}&houseSn={sn}")
+        try:
+            names.update({h.get("houseSn"): h.get("hsmpNm", "") for h in _js_objs(get(u, session=sess, tries=1, timeout=30).text, "houseList")})
+        except Exception:
+            pass
+    out = []
+    for s in sup:
+        house = names.get(s.get("houseSn")) or ""
+        t = {"kind": kind, "label": f"{house} {s.get('styleNm', '')}".strip()[:24] or "확인 실패",
+             "area": s.get("prvuseAr", ""),
+             "prices": [{"ratio": "기준", "deposit": MH.money(s.get("rentGtn"), "dep"),
+                         "rent": MH.money(s.get("mtRntchrg"), "rent")}]}
+        if t not in out:
+            out.append(t)
+    return out
 
 
 # ─────────────────────────── 조건 채우기 ───────────────────────────
@@ -439,6 +487,9 @@ def fill(n: dict, res: dict) -> dict:
     from pdfparse import parse_pdf_bytes
     m = dict(n)
     how = []
+    if res.get("myhome_types"):                     # 마이홈: API(단지별, 면적 없음)보다 페이지 공급 목록(타입별 면적)이 자세함
+        m["types"], m["types_complete"] = res["myhome_types"], True
+        how.append("임대조건: 마이홈 페이지 공급 목록")
     if not m.get("types"):
         for f in res["files"]:
             if f["kind"] == "pdf" and f["data"]:

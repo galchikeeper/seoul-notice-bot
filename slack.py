@@ -202,7 +202,9 @@ def notice_blocks(c: dict, mode: str, elig_style: str = "box") -> list[dict]:
         blocks.append(elig_table(c))
     elif has_elig and c.get("rows") and mode in ("data_table", "table"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": elig_box(c)[:2900]}})
-    note = c["note"] + (" · ✅ 자동 점검 통과(링크·조건·공고문 파일)" if "gate" in c and not c["gate"] else "")
+    # 공고문 사본이 없으면(마이홈: robots 로 내려받기 금지) '공고문 파일'은 점검 항목에서 뺀다
+    note = c["note"] + ((" · ✅ 자동 점검 통과(링크·조건" + ("·공고문 파일)" if c.get("files") else ")"))
+                        if "gate" in c and not c["gate"] else "")
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": _esc(note)[:2900]}]})
     blocks.append(card_blocks({**c, "title": "", "summary": "", "meta": ""}, 0)[2])   # [공고 보기] [신청하기]
     return blocks
