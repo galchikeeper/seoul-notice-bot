@@ -280,6 +280,10 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
     need = not (n.get("types") or n.get("ely_rows")) or not n.get("elig") or not n.get("deadline")
     url = n.get("url") or ""
     res = {"page_url": url, "page_problem": "", "files": [], "text": "", "problems": []}
+    if n.get("source") == "myhome":
+        # myhome.go.kr robots.txt 가 공고문 내려받기(/hws/com/fms/cvplFileDownload.do)를 금지한다(2026-11-24 확인)
+        # → 공고 페이지만 읽고 파일은 받지 않는다. 관문은 이 이유가 있으면 '파일 없음'을 실패로 세지 않는다.
+        res["no_files_reason"] = "마이홈은 공고문 자동 내려받기 금지(robots) — '공고 보기'에서 확인"
     sess = requests.Session()
     html = ""
     if url:

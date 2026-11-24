@@ -107,3 +107,34 @@ class Dedupe2(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MacQueue(unittest.TestCase):
+    """마이홈 카드는 GitHub 에서 보내지 않고 맥북 대기열로(2026-11-24)."""
+    def test_item_json_and_key(self):
+        n = {"board_id": "myhome:1", "source": "myhome", "name": "강서", "when": TODAY}
+        q = bot.myhome_queue_item(n, "urgent", TODAY)
+        self.assertEqual(q["key"], "myhome:1|urgent|2026-11-19")
+        self.assertEqual(q["n"]["when"], "2026-11-19")        # 날짜는 글자로 — state.json 저장이 깨지지 않게
+
+    def test_merge_dedup_and_expire(self):
+        a = bot.myhome_queue_item({"board_id": "myhome:1"}, "new", TODAY)
+        old = [a, {"key": "myhome:0|new|2026-11-01", "queued": "2026-11-01", "n": {}}]
+        out = bot.myhome_queue_merge(old, [a], TODAY)
+        self.assertEqual([q["key"] for q in out], [a["key"]])  # 같은 key 하나 · 14일 지난 것 뺌
+
+
+
+class MyhomeNoDownload(unittest.TestCase):
+    """robots.txt 가 마이홈 공고문 내려받기를 금지 — 첨부 주소를 만들지 않고, 관문은 파일 없음을 실패로 안 센다."""
+    def test_no_attachment_url(self):
+        import reader as R
+        html = '<td><a href="javascript:fnDownFile(\'1a20750e60a5\', \'1\')">공고문.pdf</a></td>'
+        self.assertEqual(R.attachments({"source": "myhome"}, html, "https://www.myhome.go.kr/x"), [])
+
+    def test_gate_skips_file(self):
+        import gate as G
+        card = {"rows": [["a"]], "elig_items": ["주택 무주택"], "top": "x · 마감 2026-12-01", "notice_url": "u"}
+        res = {"page_url": "u", "files": [], "no_files_reason": "금지"}
+        self.assertEqual(G.check(card, res, []), [])
+        self.assertIn("파일 — 공고 페이지에서 첨부를 찾지 못함", G.check(card, {"page_url": "u", "files": []}, []))

@@ -36,7 +36,9 @@ def check(card: dict, res: dict, archived: list[dict]) -> list[str]:
             out.append(f"링크 — {p}")
     files = res.get("files") or []
     got = [f for f in files if f.get("data") and f.get("kind") in ("pdf", "hwp", "hwpx", "docx", "jpg", "png", "gif")]
-    if not files:
+    if not files and res.get("no_files_reason"):
+        pass                                   # 사이트가 자동 내려받기를 금지한 출처(마이홈) — 실패가 아니라 정책
+    elif not files:
         out.append("파일 — 공고 페이지에서 첨부를 찾지 못함")
     elif not got:
         out.append("파일 — " + "; ".join(f"{f['name'][:20]}: {f['how']}" for f in files[:2]))

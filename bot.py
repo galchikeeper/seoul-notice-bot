@@ -36,6 +36,10 @@ CDN = "https://cdn.jsdelivr.net/gh/{repo}@{branch}/cards/{name}"
 
 URGENT_DAYS = int(os.environ.get("URGENT_DAYS", "3"))  # 마감 N일 이내면 마감임박
 SPACEREITS_ENABLED = os.environ.get("SPACEREITS_ENABLED", "0") == "1"  # 공간지원리츠는 맥북에서 확인(해외 IP 차단)
+# 마이홈 카드는 여기서 보내지 않고 state['myhome_queue'] 에 넣는다 → 맥북(housing-local/myhome_local.py)이
+# 한국 IP 로 공고 페이지·첨부를 읽어 보낸다(myhome.go.kr 은 GitHub 서버에서 접속이 막힘, 2026-11-24)
+MYHOME_ON_MAC = os.environ.get("MYHOME_ON_MAC", "1") == "1"
+MYHOME_QUEUE_DAYS = 14
 # 추가 실행(금요일 저녁): 새 공고만 보낸다 — 마감임박 재알림·'신규 없음' 줄은 아침 실행에서만
 QUIET = os.environ.get("RUN_KIND", "") == "extra"
 WD = "월화수목금토일"
@@ -651,6 +655,26 @@ def gated(n: dict, today: dt.date) -> dict:
     return card
 
 
+def myhome_queue_item(n: dict, kind: str, today: dt.date) -> dict:
+    """맥북 대기열 1건. key 는 공고·종류(new/urgent)·날짜 — 마감임박은 날마다 새로 알린다(GitHub 에서 보내던 때와 같게).
+    n 은 JSON 으로 저장할 수 있는 값만 남긴다(날짜 등은 글자로)."""
+    n = json.loads(json.dumps(n, ensure_ascii=False, default=str))
+    return {"key": f"{n.get('board_id') or n.get('url')}|{kind}|{today}", "kind": kind, "queued": str(today), "n": n}
+
+
+def myhome_queue_merge(old: list[dict], new: list[dict], today: dt.date) -> list[dict]:
+    """대기열 = 새 항목 + 기존 항목(같은 key 는 하나), MYHOME_QUEUE_DAYS 일 지난 것은 뺀다.
+    보냈는지는 맥북 쪽 기록(housing-local/myhome_state.json)이 맡는다 — 이 저장소에는 쓰지 않는다."""
+    cut = str(today - dt.timedelta(days=MYHOME_QUEUE_DAYS))
+    out, keys = [], set()
+    for q in new + list(old or []):
+        if q.get("key") in keys or str(q.get("queued", "")) < cut:
+            continue
+        keys.add(q["key"])
+        out.append(q)
+    return out
+
+
 def test_send(spec: str) -> int:
     """수동 시험 발송: TEST_SEND='sh:313647' 처럼 출처:번호 1건을 관문까지 거쳐 슬랙에 '🧪 시험'으로. 상태 파일 변경 없음."""
     src, _, nid = spec.partition(":")
@@ -951,23 +975,32 @@ def main() -> int:
 
     # 2-b) 슬랙 — 공고 1건 = 카드 1개. 마감임박을 먼저, 신규는 전부.
     slack_msgs = slack_failed = 0
+    queued: list[dict] = []                      # 맥북으로 넘기는 마이홈 공고
     if slk:
         cards: list[dict] = []
         seen: set[str] = set()
         by_key = {str(n.get("board_id") or n.get("url")): n for n in news}
+
+        def take(n: dict, kind: str) -> None:
+            if MYHOME_ON_MAC and n.get("source") == "myhome":
+                queued.append(myhome_queue_item(n, kind, today))
+            else:
+                cards.append(gated(n, today))
         for r in ([] if QUIET else urgent_open):
             key = str(r.get("board_id") or r.get("url"))
             seen.add(key)
             if key in by_key:            # 신규이면서 마감임박이면 신규 쪽 자세한 값(평형·PDF)을 쓴다
-                cards.append(gated({**r, **by_key[key]}, today))
+                take({**r, **by_key[key]}, "urgent")
             else:
-                cards.append(gated(r, today))
+                take(r, "urgent")
         for n in news:
             key = str(n.get("board_id") or n.get("url"))
             if key in seen:
                 continue
             seen.add(key)
-            cards.append(gated(n, today))
+            take(n, "new")
+        if queued:
+            print(f"slack: 마이홈 {len(queued)}건은 맥북 대기열로 — " + ", ".join(q["n"]["name"][:20] for q in queued))
         small = [c for c in cards if c["skip"]]
         cards = [c for c in cards if not c["skip"]]
         print(f"slack: 전용 {MIN_AREA:g}㎡ 미만으로 제외 {len(small)}건"
@@ -982,8 +1015,16 @@ def main() -> int:
             header = f"✅ {stamp} 확인 완료 · 신규·마감임박 없음"
         else:
             header = ""
+        if queued:                                 # '신규 없음'으로 오해하지 않게 마이홈 건수를 함께 적는다
+            mh_line = f"🏠 마이홈 공고 {len(queued)}건은 맥북에서 공고문을 읽은 뒤 따로 보냄"
+            if len(cards) > 1:
+                header = f"{header} · {mh_line}"
+            elif not cards and errors:
+                header = f"⚠ {stamp} 확인 일부 실패 · {mh_line}"
+            else:
+                header = f"{stamp} {mh_line}"
         footer = f"⚠ 확인 실패 {len(errors)}건: " + ", ".join(e[:40] for e in errors) if errors else ""
-        if QUIET and not cards:
+        if QUIET and not cards and not queued:
             header = footer = ""                   # 추가 실행은 새 공고가 있을 때만 보낸다
             print("slack: 추가 실행 — 새 공고 없음, 보내지 않음")
         if header or footer:                       # 요약 줄은 따로 한 메시지, 공고는 1건 = 메시지 1개
@@ -1018,6 +1059,7 @@ def main() -> int:
         state[k[len("_new_"):]] = state.pop(k)
     for sl, v in state.pop("_space_new", {}).items():
         state["spacereits"][sl] = v
+    state["myhome_queue"] = myhome_queue_merge(state.get("myhome_queue", []), queued, today)
     state["checked"] = str(today)
     if os.environ.get("DRY_RUN") == "1":
         print("dry_run: 상태 파일 저장 안 함")
