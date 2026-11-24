@@ -132,6 +132,24 @@ class MyhomeNoDownload(unittest.TestCase):
         html = '<td><a href="javascript:fnDownFile(\'1a20750e60a5\', \'1\')">공고문.pdf</a></td>'
         self.assertEqual(R.attachments({"source": "myhome"}, html, "https://www.myhome.go.kr/x"), [])
 
+    def test_read_never_downloads(self):         # 일반 href 로 된 내려받기 링크도 요청하지 않는다(검수 1/2 지적)
+        import reader as R
+        html = '<a href="/hws/com/fms/cvplFileDownload.do?atchFileId=a&fileSn=1">공고문.pdf</a>'
+        class Resp:
+            status_code, text, headers = 200, html, {"content-type": "text/html"}
+        calls = []
+        def fake_get(u, **k):
+            calls.append(u)
+            return Resp()
+        old_get, old_pp = R.get, R.page_problem
+        R.get, R.page_problem = fake_get, lambda r, t="": ""
+        try:
+            res = R.read({"source": "myhome", "url": "https://www.myhome.go.kr/p", "title": "t"})
+        finally:
+            R.get, R.page_problem = old_get, old_pp
+        self.assertEqual(calls, ["https://www.myhome.go.kr/p"])
+        self.assertEqual(res["files"], [])
+
     def test_gate_skips_file(self):
         import gate as G
         card = {"rows": [["a"]], "elig_items": ["주택 무주택"], "top": "x · 마감 2026-12-01", "notice_url": "u"}

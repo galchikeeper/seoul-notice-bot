@@ -8,7 +8,7 @@
 출처별로 다른 건 '첨부를 어디서 찾나'(attachments) 하나뿐이다. 나머지는 전부 같다.
 """
 from __future__ import annotations
-import io, json, re, time, zipfile, zlib, struct
+import io, json, os, re, time, zipfile, zlib, struct
 from urllib.parse import urljoin
 
 import requests
@@ -293,10 +293,12 @@ def read(n: dict, max_files: int = 4, tries: int = 1) -> dict:
             html = r.text if "html" in r.headers.get("content-type", "") else ""
         except Exception as e:
             blocked = _host(url) in DEAD_HOSTS
-            res["page_problem"] = (f"봇 실행 서버(GitHub·해외)에서 접속 안 됨({type(e).__name__}) — 휴대폰에서는 열릴 수 있음"
+            where = "봇 실행 서버(GitHub·해외)" if os.environ.get("GITHUB_ACTIONS") else "봇 실행 컴퓨터"
+            res["page_problem"] = (f"{where}에서 접속 안 됨({type(e).__name__}) — 휴대폰에서는 열릴 수 있음"
                                    if blocked else f"열리지 않음({type(e).__name__})")
     texts = []
-    for a in attachments(n, html, url)[:max_files]:
+    # 마이홈은 첨부를 아예 받지 않는다(robots 금지 주소) — 링크 형태와 관계없이 목록을 비운다
+    for a in ([] if res.get("no_files_reason") else attachments(n, html, url)[:max_files]):
         f = {"name": a["name"], "url": a["url"], "kind": "", "size": 0, "how": "", "chars": 0, "data": b""}
         try:
             data = get(a["url"], referer=url, session=sess, timeout=90, tries=tries).content
