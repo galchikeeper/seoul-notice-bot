@@ -1,5 +1,5 @@
 {
-  "soco_last_board_id": 6806,
+  "soco_last_board_id": 6833,
   "hillstate_count": 28,
   "spacereits": {
     "seongdong": "26.10.12|성동스페이스 7차 예비자 추첨 결과",
@@ -10,30 +10,6 @@
   },
   "tracking": [
     {
-      "board_id": 6801,
-      "name": "개봉역 세이지움 개봉",
-      "deadline": "11/24(화) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6801&menuNo=400008",
-      "addr": "서울특별시 구로구 개봉동 503",
-      "title": "[민간임대] 개봉역 세이지움 개봉 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=f091d51d9e8146a49487bfbe4a29d19d&fileSn=1",
-      "apply_url": "https://naver.me/Ix0OmoxI",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6796,
-      "name": "장한평역 유니트125(UNIT125)",
-      "deadline": "11/24(화) 24:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6796&menuNo=400008",
-      "addr": "서울특별시 동대문구 장안동 418-1번지",
-      "title": "[민간임대] 장한평역 유니트125(UNIT125) 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=9dd8bdf957ad449ebca896952bd0281e&fileSn=1",
-      "apply_url": "https://unit125.shineui.kr/",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
       "board_id": 6803,
       "name": "쌍문역 인히어쌍문",
       "deadline": "11/25(수) 23:00",
@@ -42,8 +18,8 @@
       "title": "[민간임대] 쌍문역 인히어쌍문 추가모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=1df6d02f550948769f4d931c7a7e6af2&fileSn=1",
       "apply_url": "https://naver.me/GIIBJJa4",
-      "days_left": 1,
-      "dday": "D-1"
+      "days_left": 0,
+      "dday": "D-DAY"
     },
     {
       "board_id": 6798,
@@ -54,11 +30,23 @@
       "title": "[민간임대] 미아사거리역 미아 헤리츠타워 추가모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=7bd4389ded8d4bdc852ffeda686d530d&fileSn=1",
       "apply_url": "https://naver.me/GprRXGkx",
-      "days_left": 1,
-      "dday": "D-1"
+      "days_left": 0,
+      "dday": "D-DAY"
+    },
+    {
+      "board_id": 6833,
+      "name": "돌곶이역 화랑어반트리움",
+      "deadline": "12/7(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6833&menuNo=400008",
+      "addr": "서울특별시 성북구 석관동 173-1 외 1필지",
+      "title": "[민간임대] 돌곶이역 화랑어반트리움 최초모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=c1e41602dab348e099cb6261cb0b2841&fileSn=1",
+      "apply_url": "https://naver.me/Fka1YiuR",
+      "days_left": 12,
+      "dday": "D-12"
     }
   ],
-  "checked": "2026-11-24",
+  "checked": "2026-11-25",
   "hillstate_seen": [
     "2025-12-19|예비임차인 모집 당첨자 발표(25.12.19)",
     "2024-02-26|[힐스테이트 관악 뉴포레] 건물 등기절차 진행 완료 공지",
@@ -72,6 +60,7 @@
     "2024-07-17|[힐스테이트 관악 뉴포레] 예비당첨자 명단 공지"
   ],
   "sh_seen": [
+    "313827",
     "313806",
     "313805",
     "313741",
@@ -89,6 +78,7 @@
     "313633",
     "313476",
     "313557",
+    "313634",
     "313509",
     "313503",
     "313468",
@@ -153,6 +143,7 @@
     "용산 원효 루미니(청년안심주택)": "서울"
   },
   "elyes_seen": [
+    "bmHQzCe77e/i35O4zimIow==",
     "HQfLV8PkT+P2xsk3cruf0w==",
     "JZGTkpzO9PqGg09FZnmFQg==",
     "eCp34RPA9NVKYhe5gS2xjA==",
@@ -232,6 +223,8 @@
     "19631"
   ],
   "alerted_titles": [
+    "민간임대돌곶이역화랑어반트리움최초모집공고",
+    "용산원효루미니추가모집공고접수일261130",
     "청년형특화형매입임대주택서초구입주자모집공고운영기관마을과집협동조합",
     "토지임대부사회주택옥류서원입주자모집공고",
     "어바니엘염창공실세대모집공고접수기간11201122",
@@ -260,5 +253,6 @@
     "서울지역본부일반매입임대주택예비입주자모집공고",
     "서울삼전강동천호LH수서1LH수서2행복주택예비입주자모집공고",
     "2026년서울특별시영구임대주택예비입주자모집"
-  ]
+  ],
+  "myhome_queue": []
 }
