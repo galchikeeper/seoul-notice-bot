@@ -510,9 +510,12 @@ def _deadline_from_columns(lines: list[str]) -> str:
                     cells.append(d)
                 end = m.end()
             if cells:
-                if len(cells) == len(heads):
-                    return _fmt(cells[acc[0]])
-                break
+                rest = re.sub(r"[~▶\s]", "", YMD2.sub("", ln2))
+                merged = len(YMD2.findall(ln2)) - len(cells)
+                # 날짜 아닌 칸('별도통보' 등)이 섞였거나, '~' 뒤 끝 날짜를 못 읽었으면 칸을 맞출 수 없어 포기(검수 1/2)
+                if rest or ln2.count("~") != merged or len(cells) != len(heads):
+                    return ""
+                return _fmt(cells[acc[0]])
     return ""
 
 
@@ -590,19 +593,27 @@ AREA_RULE = re.compile(r"((?:\d+인?\s*[～~\-]\s*)?\d+인\s*(?:이상\s*)?가�
                        r"([0-9.]+㎡\s*(?:이하|초과|미만)?(?:\s*[～~\-]?\s*[0-9.]+㎡\s*(?:이하|초과|미만)?)?)")
 
 
-SUPPORT = re.compile(r"보증금\s*([0-9억천만\s]+원)\s*(초과|이하)인?\s*주택\s*[:：]\s*보증금의\s*(\d{1,3})\s*%\s*,?\s*"
-                     r"최대\s*([0-9억천만\s]+원)")
+SUPPORT = re.compile(r"보증금\s*([0-9,억천백만\s]+원)\s*(초과|이하)인?\s*주택\s*[:：]\s*보증금의\s*(\d{1,3})\s*%\s*,?\s*"
+                     r"최대\s*([0-9,억천백만\s]+원)")
 
 
-def support_rows_from_text(text: str) -> tuple[list[dict], str]:
+def support_rows_from_text(text: str) -> tuple[list[dict], str, bool]:
     """보증금지원형 장기안심주택(SH 313843): 실주택 없이 세입자가 고른 집의 보증금 일부를 지원 → 금액 표가 원래 없다.
     '보증금 1억5천만원 초과인 주택 : 보증금의 40%, 최대 7천만원 무이자 지원' 줄을 지원 기준 행으로 만든다.
-    면적은 '전용85㎡ 이하'. 돌려주는 값: (행, 면적 기준 한 줄). 보증금지원 공고가 아니면 ([], '')."""
+    면적은 '전용85㎡ 이하'(예외 가구가 있으면 면적 칸에 '(예외)', 기준 줄에 예외 문장).
+    돌려주는 값: (행, 면적 기준 한 줄, 다 읽었나). 보증금지원 공고가 아니면 ([], '', True)."""
     t = text or ""
     if not re.search(r"실주택을\s*공급하지\s*않|보증금지원형", t):
-        return [], ""
+        return [], "", True
     am = re.search(r"전용\s*(\d{2,3}(?:\.\d+)?)\s*㎡\s*이하", t)
     area = f"{am.group(1)}㎡ 이하" if am else ""
+    rule = f"가구원수 무관 {area}" if area else ""
+    if am and re.search(r"전용\s*" + re.escape(am.group(1)) + r"\s*㎡\s*초과\s*가능", t):
+        # 원문 4쪽: '① 5인 이상 가구 또는 ② 한부모 미성년 3자녀 이상 가구는 전용85㎡ 초과가능'(검수 1/2)
+        ex = re.search(r"(\d인\s*이상\s*가구[^\n]*?가구)는", t)
+        who = re.sub(r"[①②③④⑤]\s*", "", ex.group(1)) if ex else "일부 가구"
+        area += "(예외)"
+        rule += f" · {' '.join(who.split())}는 {am.group(1)}㎡ 초과 가능"
     out = []
     for m in SUPPORT.finditer(t):
         amt, cond, pct, top = (" ".join(g.split()).replace(" ", "") for g in m.groups())
@@ -610,7 +621,9 @@ def support_rows_from_text(text: str) -> tuple[list[dict], str]:
                "prices": [{"ratio": "지원", "deposit": f"{pct}% 지원(최대 {top})", "rent": "주택별 상이"}]}
         if row not in out:
             out.append(row)
-    return out[:4], (f"가구원수 무관 {area}" if area and out else "")
+    # '…인 주택 : 보증금의 N%' 기준 줄(같은 줄 반복은 하나로)이 행보다 많으면 일부를 못 읽은 것
+    want = len({" ".join(x.split()) for x in re.findall(r"[^\n]*(?:초과|이하)인?\s*주택\s*[:：]\s*보증금의\s*\d{1,3}\s*%[^\n]*", t)})
+    return out[:4], (rule if out else ""), len(out) >= want
 
 
 def area_rules_from_text(text: str) -> list[tuple[str, str]]:
@@ -654,9 +667,9 @@ def fill(n: dict, res: dict) -> dict:
                 m["types"], m["types_complete"] = rows, True
                 how.append("임대조건: 공고문 글자 줄")
         if not m.get("types"):
-            rows, rule = support_rows_from_text(res["text"])
+            rows, rule, whole = support_rows_from_text(res["text"])
             if rows:
-                m["types"], m["types_complete"] = rows, True
+                m["types"], m["types_complete"] = rows, whole
                 if rule:
                     m["area_rule"] = rule
                 how.append("임대조건: 보증금 지원 기준(실주택 없음)")
