@@ -10,30 +10,6 @@
   },
   "tracking": [
     {
-      "board_id": 6803,
-      "name": "쌍문역 인히어쌍문",
-      "deadline": "11/25(수) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6803&menuNo=400008",
-      "addr": "서울특별시 도봉구 쌍문동 103-6",
-      "title": "[민간임대] 쌍문역 인히어쌍문 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=1df6d02f550948769f4d931c7a7e6af2&fileSn=1",
-      "apply_url": "https://naver.me/GIIBJJa4",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
-      "board_id": 6798,
-      "name": "미아사거리역 미아 헤리츠타워",
-      "deadline": "11/25(수) 23:00",
-      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6798&menuNo=400008",
-      "addr": "서울특별시 성북구 월계로 38",
-      "title": "[민간임대] 미아사거리역 미아 헤리츠타워 추가모집공고",
-      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=7bd4389ded8d4bdc852ffeda686d530d&fileSn=1",
-      "apply_url": "https://naver.me/GprRXGkx",
-      "days_left": 0,
-      "dday": "D-DAY"
-    },
-    {
       "board_id": 6833,
       "name": "돌곶이역 화랑어반트리움",
       "deadline": "12/7(월) 23:00",
@@ -42,11 +18,11 @@
       "title": "[민간임대] 돌곶이역 화랑어반트리움 최초모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=c1e41602dab348e099cb6261cb0b2841&fileSn=1",
       "apply_url": "https://naver.me/Fka1YiuR",
-      "days_left": 12,
-      "dday": "D-12"
+      "days_left": 11,
+      "dday": "D-11"
     }
   ],
-  "checked": "2026-11-25",
+  "checked": "2026-11-26",
   "hillstate_seen": [
     "2025-12-19|예비임차인 모집 당첨자 발표(25.12.19)",
     "2024-02-26|[힐스테이트 관악 뉴포레] 건물 등기절차 진행 완료 공지",
@@ -60,6 +36,8 @@
     "2024-07-17|[힐스테이트 관악 뉴포레] 예비당첨자 명단 공지"
   ],
   "sh_seen": [
+    "313923",
+    "313843",
     "313827",
     "313806",
     "313805",
@@ -147,7 +125,6 @@
     "HQfLV8PkT+P2xsk3cruf0w==",
     "JZGTkpzO9PqGg09FZnmFQg==",
     "eCp34RPA9NVKYhe5gS2xjA==",
-    "qpfYXeT+bSPXI4wJayYSUw==",
     "2cnG5zGoH7OyWqtiEX8VWQ==",
     "YEbfJqs0OHANwcNKkALdmA==",
     "w1q4D0kfbXEqCIV7OVfRGQ==",
@@ -204,6 +181,7 @@
     "Iq7697X9lXoFrzYLuaeXuA==",
     "kBXjmQPGxfvCZCqquI5/pQ==",
     "F8l3MComuuSVSGnKnsByqg==",
+    "qpfYXeT+bSPXI4wJayYSUw==",
     "D2wVcsoVimDbMXYqYiSjbg==",
     "Pk3JJo6YTuIi90Gdez7ojA==",
     "ZnFqgHCpPQYDqQ58j7CbHw==",
@@ -220,9 +198,11 @@
     "19834",
     "19833",
     "19832",
-    "19631"
+    "19631",
+    "21614"
   ],
   "alerted_titles": [
+    "2026년제2차보증금지원형장기안심주택입주자모집공고",
     "민간임대돌곶이역화랑어반트리움최초모집공고",
     "용산원효루미니추가모집공고접수일261130",
     "청년형특화형매입임대주택서초구입주자모집공고운영기관마을과집협동조합",
@@ -250,9 +230,61 @@
     "어바니엘한강공실세대모집공고접수기간11201122"
   ],
   "myhome_alerted": [
+    "의왕월암A1A3블록신혼희망타운행복주택입주자모집공고",
     "서울지역본부일반매입임대주택예비입주자모집공고",
     "서울삼전강동천호LH수서1LH수서2행복주택예비입주자모집공고",
     "2026년서울특별시영구임대주택예비입주자모집"
   ],
-  "myhome_queue": []
+  "myhome_queue": [
+    {
+      "key": "myhome:21614|new|2026-11-26",
+      "kind": "new",
+      "queued": "2026-11-26",
+      "n": {
+        "board_id": "myhome:21614",
+        "source": "myhome",
+        "title": "마이홈 — 의왕월암 A-1, A-3블록 신혼희망타운 행복주택 입주자 모집공고",
+        "name": "의왕월암 A-1, A-3블록 신혼희망타운 행복주택 입주자 모집공고",
+        "raw_title": "의왕월암 A-1, A-3블록 신혼희망타운 행복주택 입주자 모집공고",
+        "kicker": "LH 행복주택",
+        "addr": "경기도 의왕시",
+        "deadline": "2026-12-10",
+        "days_left": 14,
+        "dday": "D-14",
+        "urgent": false,
+        "is_recruit": true,
+        "types": [
+          {
+            "kind": "행복주택",
+            "label": "의왕월암 A-1블록",
+            "area": "",
+            "prices": [
+              {
+                "ratio": "기준",
+                "deposit": 13000.0,
+                "rent": 56.23
+              }
+            ]
+          },
+          {
+            "kind": "행복주택",
+            "label": "의왕월암 A-3블록",
+            "area": "",
+            "prices": [
+              {
+                "ratio": "기준",
+                "deposit": 13160.0,
+                "rent": 56.92
+              }
+            ]
+          }
+        ],
+        "types_complete": true,
+        "url": "https://www.myhome.go.kr/hws/portal/sch/selectRsdtRcritNtcDetailView.do?pblancId=21614&houseSn=1",
+        "apply_url": "https://www.myhome.go.kr/hws/portal/sch/selectRsdtRcritNtcDetailView.do?pblancId=21614&houseSn=1",
+        "site": "",
+        "pdf": null
+      }
+    }
+  ]
 }
