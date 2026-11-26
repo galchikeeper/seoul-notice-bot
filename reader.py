@@ -482,6 +482,37 @@ def deadline_from_text(text: str) -> str:
             ds = [_date_of(m) for m in YMD.finditer(ln2) if _ok(m)]
             if ds:
                 return _fmt(max(ds))
+    return _deadline_from_columns(lines)
+
+
+YMD2 = re.compile(r"[‘'’`]\s*(\d{2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\.?\s*(?:[（(]\s*([월화수목금토일])\s*[)）])?")
+STEP = re.compile(r"모집공고|청약접수|신청접수|인터넷청약|청약신청|서류제출|서류접수|자산소명|당첨자발표|계약체결")
+
+
+def _deadline_from_columns(lines: list[str]) -> str:
+    """'공급절차 및 일정' 가로 표(SH 보증금지원형 313843): 머리 줄 '입주자 모집공고 청약접수 서류제출' 아래 줄에
+    "'26.11.25.(수) '26.12.14.(월) ~ '26.12.16.(수) …" 처럼 칸마다 날짜(두 자리 연도)가 이어진다.
+    머리 칸 수와 날짜 칸 수가 같을 때만 '접수' 칸의 끝 날짜를 마감으로 고른다. 못 찾으면 ''."""
+    for i, ln in enumerate(lines):
+        heads = STEP.findall(_sp(ln))
+        acc = [k for k, h in enumerate(heads) if h in ("청약접수", "신청접수", "인터넷청약", "청약신청")]
+        if len(heads) < 2 or not acc:
+            continue
+        for ln2 in lines[i + 1:i + 3]:
+            cells, end = [], 0
+            for m in YMD2.finditer(ln2):
+                if not (1 <= int(m.group(2)) <= 12 and 1 <= int(m.group(3)) <= 31):
+                    continue
+                d = ((2000 + int(m.group(1)), int(m.group(2)), int(m.group(3))), m.group(4) or "")
+                if cells and "~" in ln2[end:m.start()]:
+                    cells[-1] = d                         # 'A ~ B' 는 한 칸 — 끝 날짜로 바꾼다
+                else:
+                    cells.append(d)
+                end = m.end()
+            if cells:
+                if len(cells) == len(heads):
+                    return _fmt(cells[acc[0]])
+                break
     return ""
 
 
@@ -559,6 +590,29 @@ AREA_RULE = re.compile(r"((?:\d+인?\s*[～~\-]\s*)?\d+인\s*(?:이상\s*)?가�
                        r"([0-9.]+㎡\s*(?:이하|초과|미만)?(?:\s*[～~\-]?\s*[0-9.]+㎡\s*(?:이하|초과|미만)?)?)")
 
 
+SUPPORT = re.compile(r"보증금\s*([0-9억천만\s]+원)\s*(초과|이하)인?\s*주택\s*[:：]\s*보증금의\s*(\d{1,3})\s*%\s*,?\s*"
+                     r"최대\s*([0-9억천만\s]+원)")
+
+
+def support_rows_from_text(text: str) -> tuple[list[dict], str]:
+    """보증금지원형 장기안심주택(SH 313843): 실주택 없이 세입자가 고른 집의 보증금 일부를 지원 → 금액 표가 원래 없다.
+    '보증금 1억5천만원 초과인 주택 : 보증금의 40%, 최대 7천만원 무이자 지원' 줄을 지원 기준 행으로 만든다.
+    면적은 '전용85㎡ 이하'. 돌려주는 값: (행, 면적 기준 한 줄). 보증금지원 공고가 아니면 ([], '')."""
+    t = text or ""
+    if not re.search(r"실주택을\s*공급하지\s*않|보증금지원형", t):
+        return [], ""
+    am = re.search(r"전용\s*(\d{2,3}(?:\.\d+)?)\s*㎡\s*이하", t)
+    area = f"{am.group(1)}㎡ 이하" if am else ""
+    out = []
+    for m in SUPPORT.finditer(t):
+        amt, cond, pct, top = (" ".join(g.split()).replace(" ", "") for g in m.groups())
+        row = {"kind": "", "label": f"보증금 {amt} {cond}", "area": area,
+               "prices": [{"ratio": "지원", "deposit": f"{pct}% 지원(최대 {top})", "rent": "주택별 상이"}]}
+        if row not in out:
+            out.append(row)
+    return out[:4], (f"가구원수 무관 {area}" if area and out else "")
+
+
 def area_rules_from_text(text: str) -> list[tuple[str, str]]:
     """매입임대 공고의 '1인 가구(1형) : 전용면적 40㎡ 이하' 같은 줄 → [('1인 가구', '40㎡ 이하'), …](최대 4개)."""
     out = []
@@ -599,6 +653,13 @@ def fill(n: dict, res: dict) -> dict:
             if rows:
                 m["types"], m["types_complete"] = rows, True
                 how.append("임대조건: 공고문 글자 줄")
+        if not m.get("types"):
+            rows, rule = support_rows_from_text(res["text"])
+            if rows:
+                m["types"], m["types_complete"] = rows, True
+                if rule:
+                    m["area_rule"] = rule
+                how.append("임대조건: 보증금 지원 기준(실주택 없음)")
     if m.get("source") == "myhome" and not any((t.get("area") or "") for t in m.get("types") or []):
         rules = area_rules_from_text(res["text"])
         if rules:

@@ -40,7 +40,8 @@ def test_file_case(case):
          "url": case.get("url", "https://example.invalid"), "pdf": None, "types": [], "deadline": ""}
     m = R.fill(n, res)
     got = [[t["label"], t["area"], p["deposit"], p["rent"]] for t in m["types"] for p in t["prices"]]
-    assert got == [[a, b, float(c), float(d)] for a, b, c, d in exp["rows"]], got
+    num = lambda v: v if isinstance(v, str) else float(v)          # '주택별 상이' 같은 설명 글자는 그대로 비교
+    assert got == [[a, b, num(c), num(d)] for a, b, c, d in exp["rows"]], got
     if "deadline" in exp:
         assert m.get("deadline", "") == exp["deadline"]
     keys = [k for k, _ in m["elig"]]
