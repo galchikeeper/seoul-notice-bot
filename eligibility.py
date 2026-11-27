@@ -229,10 +229,10 @@ def box_lines(items) -> list[str]:
 # ─────────────────────────── 출처별 글자 가져오기 ───────────────────────────
 
 def pdf_text(url: str, pages: int = 12, timeout: int = 90) -> str:
-    import pdfplumber
+    from pdfparse import open_pdf
     r = requests.get(url, headers=UA, timeout=timeout)
     r.raise_for_status()
-    with pdfplumber.open(io.BytesIO(r.content)) as pdf:
+    with open_pdf(r.content) as pdf:
         return "\n".join((p.extract_text() or "") for p in pdf.pages[:pages])
 
 

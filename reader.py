@@ -194,11 +194,11 @@ def ocr_image(im) -> str:
 
 def pdf_text(data: bytes, pages: int = 20) -> tuple[str, str]:
     """pdfplumber 글자 → (열기 실패면) pdfium 글자 → (글자가 거의 없으면) 쪽 그림 OCR."""
-    import pdfplumber
+    from pdfparse import open_pdf
     import pypdfium2 as pdfium
     how = "PDF 글자"
     try:
-        with pdfplumber.open(io.BytesIO(data)) as pdf:
+        with open_pdf(data) as pdf:
             text = "\n".join((p.extract_text() or "") for p in pdf.pages[:pages])
     except Exception:
         doc = pdfium.PdfDocument(data)

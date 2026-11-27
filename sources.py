@@ -203,11 +203,11 @@ def fetch_pdf_types(pdf_url: str, limit: int = 4) -> list[dict]:
     카드에는 'PDF 확인'으로 표시한다.
     """
     try:
-        import pdfplumber
+        from pdfparse import open_pdf
         r = requests.get(pdf_url, headers=UA, timeout=60)
         r.raise_for_status()
         rows: list[dict] = []
-        with pdfplumber.open(io.BytesIO(r.content)) as pdf:
+        with open_pdf(r.content) as pdf:
             for page in pdf.pages[:6]:
                 for tbl in (page.extract_tables() or []):
                     rows += _rows_from_table(tbl)

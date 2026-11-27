@@ -155,10 +155,22 @@ def parse_table(t: list[list]) -> tuple[list[dict], str]:
     return out, ""
 
 
-def parse_pdf_bytes(data: bytes) -> tuple[list[dict], str]:
+def open_pdf(data: bytes):
+    """pdfplumber 로 연다. 끝부분(xref)이 깨져 pdfminer 가 못 여는 PDF(청량리역 퀸즈W 6887, 2026-11-27)는
+    pdfium 으로 다시 저장해 복구한 뒤 연다 — 글자만 읽던 예전 대체 경로와 달리 표(find_tables)도 읽힌다."""
     import pdfplumber
+    try:
+        return pdfplumber.open(io.BytesIO(data))
+    except Exception:
+        import pypdfium2 as pdfium
+        buf = io.BytesIO()
+        pdfium.PdfDocument(data).save(buf)
+        return pdfplumber.open(io.BytesIO(buf.getvalue()))
+
+
+def parse_pdf_bytes(data: bytes) -> tuple[list[dict], str]:
     out, reasons = [], []
-    with pdfplumber.open(io.BytesIO(data)) as pdf:
+    with open_pdf(data) as pdf:
         for page in pdf.pages:
             for tb in page.find_tables():
                 t = tb.extract()
