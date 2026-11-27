@@ -485,6 +485,23 @@ def deadline_from_text(text: str) -> str:
     return _deadline_from_columns(lines)
 
 
+def apply_start_from_text(text: str) -> str:
+    """접수·신청 기간 줄에서 'A ~ B' 의 A → 'M/D(요일) HH:MM'. 못 찾으면 ''(카드에는 마감만 나온다)."""
+    lines = (text or "").split("\n")
+    for i, ln in enumerate(lines):
+        if not re.search(r"(접수|신청)(기간|일정|일시)|청약(기간|일정)", _sp(ln)):
+            continue
+        if re.search(r"등기|계약|입주(기간|예정|시기)|공고일|자격|서류제출|방법|발표|추첨|당첨", ln):
+            continue
+        for ln2 in lines[i:i + 3]:
+            m = re.search(YMD.pattern + r"\s*(\d{1,2}:\d{2})?\s*~", ln2)
+            if m and _ok(m):
+                (y, mo, d), wd = _date_of(m)
+                s = f"{mo}/{d}" + (f"({wd})" if wd else "")
+                return s + (f" {m.group(5)}" if m.group(5) else "")
+    return ""
+
+
 YMD2 = re.compile(r"[‘'’`]\s*(\d{2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\.?\s*(?:[（(]\s*([월화수목금토일])\s*[)）])?")
 STEP = re.compile(r"모집공고|청약접수|신청접수|인터넷청약|청약신청|서류제출|서류접수|자산소명|당첨자발표|계약체결")
 
@@ -696,5 +713,9 @@ def fill(n: dict, res: dict) -> dict:
         if d:
             m["deadline"] = d
             how.append("마감: 공고문 일정")
+    if not m.get("apply_start"):
+        st = apply_start_from_text(res["text"])
+        if st:
+            m["apply_start"] = st
     m["_read_how"] = how
     return m

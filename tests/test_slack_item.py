@@ -16,6 +16,21 @@ def n(types, pdf="x.pdf", deadline="11/28"):
 
 
 class T(unittest.TestCase):
+    def test_apply_period_shown(self):               # 마감만 있고 신청기간이 없던 문제(청량리역 퀸즈W 2026-11-27)
+        m = {**n([t("41.40")], deadline="12/1(화) 23:00"), "apply_start": "11/30(월) 00:00"}
+        c = bot.slack_item(m, dt.date(2026, 11, 27), fetch_pdf=False)
+        self.assertIn("신청 11/30(월) 00:00 ~ 마감 12/1(화) 23:00", c["top"])
+        self.assertTrue(any("신청 시작 전" in f for f in c["flags"]))
+        c2 = bot.slack_item(n([t("41.40")]), dt.date(2026, 11, 27), fetch_pdf=False)   # 시작을 모르면 예전 표기
+        self.assertIn("마감 11/28", c2["top"])
+        self.assertNotIn("신청 ", c2["top"])
+
+    def test_apply_start_parse(self):
+        import sources as S, reader as R
+        self.assertEqual(S._apply_start("‘26. 11. 30. (월) 00:00 ~ 12. 01. (화) 23:00"), "11/30(월) 00:00")
+        self.assertEqual(S._apply_start("‘26. 09. 07. (월)"), "")
+        self.assertEqual(R.apply_start_from_text("접수기간 2026.11.20.(금) 10:00 ~ 2026.11.22.(일) 18:00"), "11/20(금) 10:00")
+
     def test_drop_small_types(self):
         c = bot.slack_item(n([t("20.20"), t("43.61", "54형")]), TODAY, fetch_pdf=False)
         self.assertFalse(c["skip"])

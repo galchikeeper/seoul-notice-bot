@@ -127,7 +127,7 @@ def collect(state: dict, today: dt.date):
             if left is not None and left >= 0:
                 open_now.append({
                     "board_id": n.get("board_id"), "name": clean_name(n["title"]),
-                    "deadline": n["deadline"], "url": n["url"],
+                    "deadline": n["deadline"], "apply_start": n.get("apply_start", ""), "url": n["url"],
                     "addr": n.get("addr", ""),
                     "title": n.get("title", ""), "pdf": n.get("pdf"),
                     "apply_url": _apply_url(n),
@@ -582,6 +582,18 @@ def elyes_slack_item(n: dict) -> dict:
             "title": top, "summary": fallback, "meta": note}
 
 
+def _not_started(start: str, today: dt.date) -> bool:
+    """'11/30(월) 00:00' 이 오늘 이후(시각까지 비교)인지. 연도는 오늘 기준(연말·연초 걸침은 6개월 넘게 과거면 다음 해)."""
+    m = re.match(r"(\d{1,2})/(\d{1,2})(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?", start or "")
+    if not m:
+        return False
+    now = dt.datetime.now(KST).replace(tzinfo=None)
+    d = dt.datetime(today.year, int(m.group(1)), int(m.group(2)), int(m.group(3) or 0), int(m.group(4) or 0))
+    if (now - d).days > 180:
+        d = d.replace(year=d.year + 1)
+    return d > now
+
+
 def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     """공고 1건 → 슬랙 메시지 1개에 들어갈 값. 모르는 값은 지어내지 않고 '확인 실패'·'공고문 확인'.
     전용 MIN_AREA㎡ 미만 타입은 표에서 빼고, 모든 타입이 미만이면 skip=True(보내지 않음)."""
@@ -595,7 +607,9 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
     dd = n.get("dday") or (S.dday(n["deadline"], today) if n.get("deadline") else "")
     urgent = left is not None and 0 <= left <= URGENT_DAYS
     deadline = n.get("deadline") or "공고문 확인"
-    top = (f"⚠️ {dd} · " if urgent and dd else "") + f"{name} · 마감 {deadline}"
+    start = n.get("apply_start") or ""
+    period = f"신청 {start} ~ 마감 {deadline}" if start and n.get("deadline") else f"마감 {deadline}"
+    top = (f"⚠️ {dd} · " if urgent and dd else "") + f"{name} · {period}"
 
     types = n.get("types") or []
     complete = n.get("types_complete", True)
@@ -635,6 +649,8 @@ def slack_item(n: dict, today: dt.date, fetch_pdf: bool = True) -> dict:
         n = {**n, "elig": eligibility_of(n)}
     elig = list(n.get("elig") or [])
     flags = ["📐 면적 확인 필요"] if area_unknown else []
+    if start and _not_started(start, today):       # 신청 링크가 '신청기간이 아님'으로 뜨는 때를 미리 알린다
+        flags.insert(0, f"⏳ 신청 시작 전 — {start}부터 신청 가능")
     if area_unknown and n.get("area_rule"):        # 매입임대처럼 집별 면적이 없고 가구원수별 기준만 있는 공고
         # 표가 이미 기준 행(면적 칸에 '40㎡ 이하' 등)이면 위 줄은 겹치니 붙이지 않는다
         in_rows = kept and all(str(t.get("area", "")).endswith(("이하", "초과", "미만")) for t in kept)

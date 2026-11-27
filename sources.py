@@ -118,6 +118,7 @@ def parse_body(body: str) -> dict:
         "supply": one(r"공급호수\s*[:：]\s*(.+)"),
         "apply_raw": apply_raw,
         "deadline": _deadline(apply_raw),
+        "apply_start": _apply_start(apply_raw),
         "site": site,
         # 신청 버튼용: 본문의 '청약신청 페이지 : https://…' 줄에 적힌 주소만 쓴다
         "apply_url": one(r"청약신청\s*페이지\s*[:：]\s*(https?://[^\s,)）<]+)"),
@@ -127,6 +128,26 @@ def parse_body(body: str) -> dict:
 
 DATE_RE = re.compile(
     r"(\d{1,2})\.\s*(\d{1,2})\.\s*[（(]?([월화수목금토일])?[)）]?\s*(\d{1,2}:\d{2})?")
+
+
+def _apply_start(raw: str) -> str:
+    """'‘26. 11. 30. (월) 00:00 ~ 12. 01. (화) 23:00' → '11/30(월) 00:00' (신청 시작). '~' 가 없으면 ''.
+    카드에 마감만 있고 신청기간 시작이 없던 문제(청량리역 퀸즈W 2026-11-27)."""
+    if not raw or "~" not in raw:
+        return ""
+    raw = re.sub(r"[‘’'\"`]\s*\d{2}\s*\.", " ", raw)
+    raw = re.sub(r"\b20\d{2}\s*[.년]", " ", raw)
+    head = raw.split("~")[0]
+    m = next((x for x in DATE_RE.finditer(head)
+              if 1 <= int(x.group(1)) <= 12 and 1 <= int(x.group(2)) <= 31), None)
+    if not m:
+        return ""
+    s = f"{int(m.group(1))}/{int(m.group(2))}"
+    if m.group(3):
+        s += f"({m.group(3)})"
+    if m.group(4):
+        s += f" {m.group(4)}"
+    return s
 
 
 def _deadline(raw: str) -> str:
