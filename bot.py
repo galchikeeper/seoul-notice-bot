@@ -48,6 +48,7 @@ DEFAULT_STATE = {
     "soco_last_board_id": 6645,
     "hillstate_count": 28,
     "spacereits": {k: "" for k in S.SPACEREITS},
+    "apply_hold": [],    # 신청 시작 전이라 카드를 미룬 공고(시작 시각 뒤 실행에서 발송)
     "tracking": [],      # 접수 진행 중인 공고 — 신규가 아니어도 마감을 계속 본다
     "checked": "",
 }
@@ -113,6 +114,22 @@ def collect(state: dict, today: dt.date):
     #     마감 추적 목록에 넣는다. (신규만 보던 예전 방식은 어제 알린 공고가
     #     오늘 마감인 경우를 놓쳤다.)
     last_id = state["soco_last_board_id"]
+    # 신청 시작 전이라 보류한 공고: 신청 시작 시각이 지난 실행에서 카드로 보낸다(2026-11-27 사용자 지시 —
+    # 카드의 신청 링크가 '신청기간이 아님'으로 뜨는 혼동을 없앰). APPLY_HOLD=0 이면 예전처럼 발견 즉시 보냄.
+    hold_on = os.environ.get("APPLY_HOLD", "1") == "1"
+    still = []
+    for h in state.get("apply_hold") or []:
+        left_h = S.dday_days(h.get("deadline", ""), today)
+        if left_h is not None and left_h < 0:
+            print(f"hold: 마감돼 버림 — {h.get('title', '')[:40]}")
+        elif _not_started(h.get("apply_start", ""), today):
+            still.append(h)
+        else:
+            h["days_left"], h["dday"] = left_h, S.dday(h["deadline"], today)
+            h["urgent"] = left_h is not None and 0 <= left_h <= URGENT_DAYS
+            news.append(h)
+            print(f"hold: 신청 시작 — 발송 대상으로 올림: {h.get('title', '')[:40]}")
+    state["apply_hold"] = still
     try:
         fetched = S.fetch_soco(0, max_pages=2)
         if fetched:
@@ -137,6 +154,11 @@ def collect(state: dict, today: dt.date):
             if left is not None and left < 0:
                 # 봇이 하루 걸렀을 때 이미 끝난 공고를 신규로 알리지 않는다
                 print(f"skip(마감됨): {n['title'][:50]} — {n['deadline']}")
+                continue
+            if hold_on and n.get("apply_start") and _not_started(n["apply_start"], today):
+                if not any(h.get("board_id") == n["board_id"] for h in state["apply_hold"]):
+                    state["apply_hold"].append(n)
+                print(f"hold: 신청 시작({n['apply_start']}) 전 — 시작 후 발송: {n['title'][:40]}")
                 continue
             news.append(n)
     except Exception as e:

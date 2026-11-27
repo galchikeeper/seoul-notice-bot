@@ -114,3 +114,28 @@ class Send(unittest.TestCase):
         s = self.slack.Slack("https://hooks.invalid/x")
         self.assertFalse(s.send_notice(self.card()))
         self.assertEqual(len(self.calls), 1)
+
+
+class Hold(unittest.TestCase):
+    """신청 시작 전 공고는 보류, 시작 뒤에는 발송 대상으로(2026-11-27)."""
+    def _run(self, start, state):
+        from unittest import mock
+        import sources as S
+        row = {"board_id": 7000, "source": "soco", "title": "[민간임대] 시험역 시험단지 추가모집공고", "deadline": "12/1(화) 23:00",
+               "apply_start": start, "url": "u", "addr": "", "pdf": None}
+        with mock.patch.object(S, "fetch_soco", return_value=[dict(row)]), \
+             mock.patch.object(S, "fetch_hillstate", side_effect=Exception("x")), \
+             mock.patch.object(bot, "_not_started", side_effect=lambda s, t: s == "12/30(수) 00:00"):
+            return bot.collect(state, dt.date(2026, 11, 27))
+
+    def test_hold_then_release(self):
+        st = {**bot.DEFAULT_STATE, "soco_last_board_id": 6999, "hillstate_seen": []}
+        news, *_ = self._run("12/30(수) 00:00", st)
+        self.assertFalse([n for n in news if n.get("board_id") == 7000])
+        self.assertEqual([h["board_id"] for h in st["apply_hold"]], [7000])
+        held = st["apply_hold"][0]
+        held["apply_start"] = "11/27(금) 00:00"                  # 시작 시각이 지난 뒤 실행
+        st2 = {**bot.DEFAULT_STATE, "soco_last_board_id": 7000, "hillstate_seen": [], "apply_hold": [held]}
+        news2, *_ = self._run("11/27(금) 00:00", st2)
+        self.assertEqual([n["board_id"] for n in news2 if n.get("board_id") == 7000], [7000])
+        self.assertEqual(st2["apply_hold"], [])
