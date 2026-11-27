@@ -1,5 +1,5 @@
 {
-  "soco_last_board_id": 6833,
+  "soco_last_board_id": 6889,
   "hillstate_count": 28,
   "spacereits": {
     "seongdong": "26.10.12|성동스페이스 7차 예비자 추첨 결과",
@@ -10,6 +10,90 @@
   },
   "tracking": [
     {
+      "board_id": 6889,
+      "name": "회기역 하트리움",
+      "deadline": "11/30(월) 17:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6889&menuNo=400008",
+      "addr": "서울특별시 동대문구 망우로 46",
+      "title": "[민간임대] 회기역 하트리움 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=bc4bd28b5422432ebed557718c6263ab&fileSn=1",
+      "apply_url": "https://www.doojin2030.co.kr",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6885,
+      "name": "서울대벤처타운역 센터스퀘어 서울대점",
+      "deadline": "11/30(월)",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6885&menuNo=400008",
+      "addr": "서울특별시 관악구 신림동 1747",
+      "title": "[민간임대] 서울대벤처타운역 센터스퀘어 서울대점 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=2d8dfc93f5094344b9f871bf2fe41e18&fileSn=1",
+      "apply_url": "https://naver.me/5jXcjsgG",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6884,
+      "name": "연신내역 루미노816",
+      "deadline": "11/30(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6884&menuNo=400008",
+      "addr": "서울특별시 은평구 불광동 302-13번지 외 1필지",
+      "title": "[민간임대] 연신내역 루미노816 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=ee57a9fec02a4b898dc27bf336590f15&fileSn=1",
+      "apply_url": "https://naver.me/xTy97lYH",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6883,
+      "name": "왕십리역 라봄성동",
+      "deadline": "11/30(월) 10:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6883&menuNo=400008",
+      "addr": "서울특별시 성동구 마장동 836일원",
+      "title": "[민간임대] 왕십리역 라봄성동 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=1566b38f07de473697f4a25f45874d40&fileSn=1",
+      "apply_url": "https://naver.me/5t71qVMl",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6882,
+      "name": "연신내역 더스튜디오163",
+      "deadline": "11/30(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6882&menuNo=400008",
+      "addr": "서울특별시 은평구 갈현동 456-25",
+      "title": "[민간임대] 연신내역 더스튜디오163 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=46653443822847f7b82081b30d4fb0c3&fileSn=1",
+      "apply_url": "https://naver.me/5MvIwgG7",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6881,
+      "name": "신대방삼거리역 골드타워",
+      "deadline": "11/30(월) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6881&menuNo=400008",
+      "addr": "서울특별시 동작구 신대방동 351-5번지",
+      "title": "[민간임대] 신대방삼거리역 골드타워 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=6430c6bef243400bbe6c1f1b2d985be2&fileSn=1",
+      "apply_url": "https://naver.me/5dho7B29",
+      "days_left": 3,
+      "dday": "D-3"
+    },
+    {
+      "board_id": 6887,
+      "name": "청량리역 퀸즈W",
+      "deadline": "12/1(화) 23:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6887&menuNo=400008",
+      "addr": "서울특별시 동대문구 전농동 127-359",
+      "title": "[민간임대] 청량리역 퀸즈W 청량리역 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=c981971f5a9e4a75a674558cb8796349&fileSn=1",
+      "apply_url": "https://naver.me/5zUK5ugK",
+      "days_left": 4,
+      "dday": "D-4"
+    },
+    {
       "board_id": 6833,
       "name": "돌곶이역 화랑어반트리움",
       "deadline": "12/7(월) 23:00",
@@ -18,11 +102,23 @@
       "title": "[민간임대] 돌곶이역 화랑어반트리움 최초모집공고",
       "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=c1e41602dab348e099cb6261cb0b2841&fileSn=1",
       "apply_url": "https://naver.me/Fka1YiuR",
-      "days_left": 11,
-      "dday": "D-11"
+      "days_left": 10,
+      "dday": "D-10"
+    },
+    {
+      "board_id": 6886,
+      "name": "서울역 어반허브 서울스테이션",
+      "deadline": "12/10(목) 17:00",
+      "url": "https://soco.seoul.go.kr/youth/bbs/BMSR00015/view.do?boardId=6886&menuNo=400008",
+      "addr": "서울특별시 용산구 서계동 100-1번지",
+      "title": "[민간임대] 서울역 어반허브 서울스테이션 추가모집공고",
+      "pdf": "https://soco.seoul.go.kr/coHouse/cmmn/file/fileDown.do?atchFileId=8ee00c1d4e5d4640ae7af99888fec4b9&fileSn=1",
+      "apply_url": "https://www.urbanhub25.com",
+      "days_left": 13,
+      "dday": "D-13"
     }
   ],
-  "checked": "2026-11-26",
+  "checked": "2026-11-27",
   "hillstate_seen": [
     "2025-12-19|예비임차인 모집 당첨자 발표(25.12.19)",
     "2024-02-26|[힐스테이트 관악 뉴포레] 건물 등기절차 진행 완료 공지",
@@ -36,7 +132,11 @@
     "2024-07-17|[힐스테이트 관악 뉴포레] 예비당첨자 명단 공지"
   ],
   "sh_seen": [
+    "313968",
+    "313928",
+    "313983",
     "313923",
+    "313957",
     "313843",
     "313827",
     "313806",
@@ -122,11 +222,9 @@
   },
   "elyes_seen": [
     "bmHQzCe77e/i35O4zimIow==",
-    "HQfLV8PkT+P2xsk3cruf0w==",
     "JZGTkpzO9PqGg09FZnmFQg==",
     "eCp34RPA9NVKYhe5gS2xjA==",
     "2cnG5zGoH7OyWqtiEX8VWQ==",
-    "YEbfJqs0OHANwcNKkALdmA==",
     "w1q4D0kfbXEqCIV7OVfRGQ==",
     "U/apRuBYIx2idgz5WK+VoA==",
     "O9qzXNbgzY+lAFpitar6fA==",
@@ -157,7 +255,6 @@
     "WiKXeoYwAYW1PMYHbAi05g==",
     "R3wdEAdGRL6rgPn58gMdSw==",
     "pI358Rg9zUTBrBIUUWdwIw==",
-    "sixoPca9dntPF+X+J8r2Rg==",
     "O1DxsAbTPFnUqLpZAEi7Rg==",
     "d6eGe4eCK7WDOQu4R5pTvw==",
     "v1iQ6mFtoF2/xeqcLFzqcQ==",
@@ -181,6 +278,12 @@
     "Iq7697X9lXoFrzYLuaeXuA==",
     "kBXjmQPGxfvCZCqquI5/pQ==",
     "F8l3MComuuSVSGnKnsByqg==",
+    "UI11brHZ4FVFDWD0LTecmw==",
+    "Pk2M97kvRO0KnsLBifkjDA==",
+    "v4bzwhizv+lS4r1bav9xPw==",
+    "HQfLV8PkT+P2xsk3cruf0w==",
+    "YEbfJqs0OHANwcNKkALdmA==",
+    "sixoPca9dntPF+X+J8r2Rg==",
     "qpfYXeT+bSPXI4wJayYSUw==",
     "D2wVcsoVimDbMXYqYiSjbg==",
     "Pk3JJo6YTuIi90Gdez7ojA==",
@@ -202,6 +305,14 @@
     "21614"
   ],
   "alerted_titles": [
+    "민간임대회기역하트리움추가모집공고",
+    "민간임대청량리역퀸즈W청량리역추가모집공고",
+    "민간임대서울역어반허브서울스테이션추가모집공고",
+    "민간임대서울대벤처타운역센터스퀘어서울대점추가모집공고",
+    "민간임대연신내역루미노816추가모집공고",
+    "민간임대왕십리역라봄성동추가모집공고",
+    "민간임대연신내역더스튜디오163추가모집공고",
+    "민간임대신대방삼거리역골드타워추가모집공고",
     "2026년제2차보증금지원형장기안심주택입주자모집공고",
     "민간임대돌곶이역화랑어반트리움최초모집공고",
     "용산원효루미니추가모집공고접수일261130",
@@ -220,7 +331,6 @@
     "민간임대서초역서초꽃마을주얼리추가모집공고",
     "민간임대강변역비바힐스강변추가모집공고",
     "민간임대미아사거리역미아헤리츠타워추가모집공고",
-    "민간임대왕십리역라봄성동추가모집공고",
     "민간임대장한평역유니트125UNIT125추가모집공고",
     "토지지원사회주택에어스페이스신림4호점어울리입주자모집공고",
     "토지지원사회주택에어스페이스신림3호점어울리입주자모집공고",
